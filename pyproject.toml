@@ -1,0 +1,16 @@
+[project]
+name = "llama-stack-provider-lmeval"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "llama-stack",
+    "kubernetes",
+    "fastapi",
+    "opentelemetry-api",
+    "opentelemetry-exporter-otlp",
+    "aiosqlite",
+    "uvicorn",
+    "ipykernel"
+]
