@@ -15,3 +15,9 @@ class LMEvalValidationError(LMEvalError):
     """Validation related errors"""
 
     pass
+
+
+class LMEvalTaskNameError(LMEvalValidationError):
+    """LMEval task name is invalid"""
+
+    pass

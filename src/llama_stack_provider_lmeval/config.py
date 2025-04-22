@@ -6,10 +6,8 @@ from typing import Dict, List, Optional, Any
 from pydantic import Field
 
 from llama_stack.apis.eval import BenchmarkConfig, EvalCandidate
-from llama_stack.schema_utils import json_schema_type
-
 from src.llama_stack_provider_lmeval.errors import LMEvalConfigError
-
+from llama_stack.schema_utils import json_schema_type
 
 @json_schema_type
 @dataclass
