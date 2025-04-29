@@ -1,4 +1,5 @@
 # TrustyAI LM-Eval as and Out-of-Tree Llama Stack Provider
+
 This repository implements [TrustyAI's LM-Eval](https://trustyai-explainability.github.io/trustyai-site/main/lm-eval-tutorial.html) as an out-of-tree Llama Stack remote provider.
 
 It also includes an end-to-end instructions demonstratring how one can use LM-Eval on LLama Stack to run benchmark evaluations over [DK-Bench](https://github.com/instructlab/instructlab/blob/main/src/instructlab/model/evaluate.py#L30) on a deployed [Phi-3-mini-4k-instruct](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct) model via OpenShift.
@@ -12,7 +13,7 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
 
 1. Clone this repository
     ```
-    git clone https://github.com/christinaexyou/llama-stack-provider-lmeval.git
+    git clone https://github.com/trustyai-explainability/llama-stack-provider-lmeval.git
     ```
 
 2. Set `llama-stack-provider-lmeval/demo` as your working directory.
@@ -31,7 +32,7 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
 
     b. Deploy the model via vLLM
     ```bash
-    oc apply -k resources/models/kustomization.yaml
+    oc apply -k resources/kustomization.yaml
     ```
 
 4. Before continuing, preform a sanity check to make sure the model was sucessfully deployed
@@ -50,7 +51,7 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
     ```
 6. Create and activate a virtual enviornment
     ```
-    python3 -m venv .llamastack-venv
+    uv venv .llamastack-venv
     ```
 
     ```
@@ -59,7 +60,7 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
 
 7. Install the required libraries
     ```
-    pip install -r requirements.txt
+    uv pip install -e .
     ```
 
 8. In the `run.yaml`, make the following changes:

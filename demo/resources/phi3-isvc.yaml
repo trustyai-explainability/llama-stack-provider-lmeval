@@ -1,0 +1,40 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: phi-3
+  labels:
+    opendatahub.io/dashboard: 'true'
+  annotations:
+    openshift.io/display-name: phi-3
+    security.opendatahub.io/enable-auth: 'true'
+    serving.knative.openshift.io/enablePassthrough: 'true'
+    sidecar.istio.io/inject: 'true'
+    sidecar.istio.io/rewriteAppHTTPProbers: 'true'
+
+spec:
+  predictor:
+    Annotations:
+      serving.knative.dev/progress-deadline:  30m
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      name: ''
+      resources:
+        limits:
+          cpu: '2000m'
+          memory: 4Gi
+          nvidia.com/gpu: '1'
+        requests:
+          cpu: '1000m'
+          memory: 2Gi
+          nvidia.com/gpu: '1'
+      runtime: vllm-runtime-phi-3
+      storage:
+        key: aws-connection-phi-3-data-connection
+        path: Phi-3-mini-4k-instruct
+    tolerations:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists

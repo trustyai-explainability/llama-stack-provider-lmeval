@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- phi3-model-container.yaml
+- phi3-serving-runtime.yaml
+- phi3-isvc.yaml
