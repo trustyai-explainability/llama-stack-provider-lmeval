@@ -20,6 +20,7 @@ class LMEvalBenchmarkConfig(BenchmarkConfig):
     - custom_task: For specifying custom task sources (e.g., from git)
     - env: Dictionary of environment variables to pass to the evaluation pod
            (e.g., {'DK_BENCH_DATASET_PATH': '', 'JUDGE_MODEL_URL': ''})
+    - tokenizer: Custom tokenizer to use for the model
     """
 
     # K8s specific configuration
