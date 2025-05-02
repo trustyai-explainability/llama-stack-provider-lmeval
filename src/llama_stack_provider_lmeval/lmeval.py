@@ -138,7 +138,9 @@ class LMEvalCR(BaseModel):
 class LMEvalCRBuilder:
     """An utility class which creates LMEval Custom Resources from BenchmarkConfigs."""
 
-    def __init__(self, namespace: str = "default", service_account: Optional[str] = None):
+    def __init__(
+        self, namespace: str = "default", service_account: Optional[str] = None
+    ):
         """Initialize the LMEvalCRBuilder.
 
         Args:
@@ -188,7 +190,7 @@ class LMEvalCRBuilder:
         ]
 
         if base_url:
-            base_url = base_url.rstrip('/')
+            base_url = base_url.rstrip("/")
             openai_base_url = f"{base_url}/v1/openai/v1/completions"
             model_args.append(ModelArg(name="base_url", value=openai_base_url))
 
@@ -196,6 +198,14 @@ class LMEvalCRBuilder:
         # FIXME: batch_size is duplicated
         # model_args.append(ModelArg(name="batch_size", value="auto"))
         model_args.append(ModelArg(name="num_concurrent", value="3"))
+
+        # Add TLS configuration (if present in config)
+        if hasattr(self._config, "tls") and self._config.tls is not None:
+            tls_value = str(self._config.tls)
+            logger.debug(
+                f"Adding TLS configuration to CR: verify_certificate={tls_value}"
+            )
+            model_args.append(ModelArg(name="verify_certificate", value=tls_value))
 
         env_vars = []
         if hasattr(task_config, "env_vars") and task_config.env_vars:
@@ -208,21 +218,27 @@ class LMEvalCRBuilder:
                 logger.info(f"Found environment variables in metadata: {metadata_env}")
                 for key, value in metadata_env.items():
                     env_vars.append({"name": key, "value": str(value)})
-                    logger.info(f"Added environment variable from metadata: {key}={value}")
+                    logger.info(
+                        f"Added environment variable from metadata: {key}={value}"
+                    )
 
         # Get environment variables from stored benchmark metadata
         if (
-            not env_vars and
-            stored_benchmark and
-            hasattr(stored_benchmark, "metadata") and
-            stored_benchmark.metadata
+            not env_vars
+            and stored_benchmark
+            and hasattr(stored_benchmark, "metadata")
+            and stored_benchmark.metadata
         ):
             metadata_env = stored_benchmark.metadata.get("env")
             if metadata_env and isinstance(metadata_env, dict):
-                logger.info(f"Found environment variables in stored benchmark metadata: {metadata_env}")
+                logger.info(
+                    f"Found environment variables in stored benchmark metadata: {metadata_env}"
+                )
                 for key, value in metadata_env.items():
                     env_vars.append({"name": key, "value": str(value)})
-                    logger.info(f"Added environment variable from stored benchmark metadata: {key}={value}")
+                    logger.info(
+                        f"Added environment variable from stored benchmark metadata: {key}={value}"
+                    )
 
         # FIXME: Improve this
         if "::" in benchmark_id:
@@ -237,20 +253,30 @@ class LMEvalCRBuilder:
         if env_vars or self._service_account:
             # Add environment variables to the container config
             container_config = ContainerConfig(
-                env=[{"name": e["name"], "value": e["value"]} for e in env_vars] if env_vars else None
+                env=(
+                    [{"name": e["name"], "value": e["value"]} for e in env_vars]
+                    if env_vars
+                    else None
+                )
             )
             # Add service account to the pod config
-            pod_config = PodConfig(container=container_config, serviceAccountName=self._service_account)
+            pod_config = PodConfig(
+                container=container_config, serviceAccountName=self._service_account
+            )
             # FIXME: Remove debug logging
             if env_vars:
-                logger.info(f"Setting pod environment variables: {json.dumps(env_vars, indent=2)}")
+                logger.info(
+                    f"Setting pod environment variables: {json.dumps(env_vars, indent=2)}"
+                )
 
         custom_tasks = None
 
         if hasattr(task_config, "metadata") and task_config.metadata:
             custom_task_data = task_config.metadata.get("custom_task")
             if custom_task_data and isinstance(custom_task_data, dict):
-                logger.info(f"Found custom_task in task_config metadata: {custom_task_data}")
+                logger.info(
+                    f"Found custom_task in task_config metadata: {custom_task_data}"
+                )
                 git_data = custom_task_data.get("git")
                 if git_data and isinstance(git_data, dict):
                     git_url = git_data.get("url")
@@ -277,12 +303,16 @@ class LMEvalCRBuilder:
         ):
             custom_task_data = stored_benchmark.metadata.get("custom_task")
             if custom_task_data and isinstance(custom_task_data, dict):
-                logger.info(f"Found custom_task in stored benchmark metadata: {custom_task_data}")
+                logger.info(
+                    f"Found custom_task in stored benchmark metadata: {custom_task_data}"
+                )
                 git_data = custom_task_data.get("git")
                 if git_data and isinstance(git_data, dict):
                     git_url = git_data.get("url")
                     if git_url:
-                        logger.info(f"Setting up GitSource from stored benchmark with URL: {git_url}")
+                        logger.info(
+                            f"Setting up GitSource from stored benchmark with URL: {git_url}"
+                        )
                         git_source = GitSource(
                             url=git_url,
                             branch=git_data.get("branch"),
@@ -291,11 +321,15 @@ class LMEvalCRBuilder:
                         )
                         custom_task_source = CustomTaskSource(git=git_source)
                         custom_tasks = CustomTasks(source=custom_task_source)
-                        logger.info(f"Added custom tasks from stored benchmark: {git_url}")
+                        logger.info(
+                            f"Added custom tasks from stored benchmark: {git_url}"
+                        )
 
         task_list_params = {"taskNames": [task_name]}
         if custom_tasks:
-            logger.info(f"Including customTasks in CR with source: {custom_tasks.source}")
+            logger.info(
+                f"Including customTasks in CR with source: {custom_tasks.source}"
+            )
             task_list_params["customTasks"] = custom_tasks
             logger.info(f"TaskList parameters: {task_list_params}")
             logger.info(f"customTasks object: {custom_tasks.model_dump()}")
@@ -314,9 +348,9 @@ class LMEvalCRBuilder:
 
         # Pass environment variables from metadata.env to benchmark_config
         if (
-            hasattr(task_config, "metadata") and
-            task_config.metadata and
-            "env" in task_config.metadata
+            hasattr(task_config, "metadata")
+            and task_config.metadata
+            and "env" in task_config.metadata
         ):
             env_data = task_config.metadata.get("env", {})
             if isinstance(env_data, dict):
@@ -326,11 +360,15 @@ class LMEvalCRBuilder:
 
                 for key, value in env_data.items():
                     task_config.env_vars.append({"name": key, "value": str(value)})
-                logger.info(f"Added environment variables from metadata.env to task_config")
+                logger.info(
+                    f"Added environment variables from metadata.env to task_config"
+                )
 
         # FIXME: Assert task_name is valid and non-empty
         cr = LMEvalCR(
-            metadata=LMEvalMetadata(name=f"lmeval-llama-stack-job-{job_id}", namespace=self._namespace),
+            metadata=LMEvalMetadata(
+                name=f"lmeval-llama-stack-job-{job_id}", namespace=self._namespace
+            ),
             spec=LMEvalSpec(**spec_params),
         )
 
@@ -344,11 +382,17 @@ class LMEvalCRBuilder:
 
         # Check if we have custom task data from the task_config
         git_source_data = None
-        if hasattr(task_config, "metadata") and task_config.metadata and "custom_task" in task_config.metadata:
+        if (
+            hasattr(task_config, "metadata")
+            and task_config.metadata
+            and "custom_task" in task_config.metadata
+        ):
             custom_task_data = task_config.metadata.get("custom_task", {})
             git_data = custom_task_data.get("git", {})
             if git_data and "url" in git_data:
-                logger.info(f"Found git URL in task_config metadata: {git_data.get('url')}")
+                logger.info(
+                    f"Found git URL in task_config metadata: {git_data.get('url')}"
+                )
                 git_source_data = {
                     "url": git_data.get("url"),
                     "branch": git_data.get("branch"),
@@ -357,11 +401,18 @@ class LMEvalCRBuilder:
                 }
 
         # Check in stored_benchmark
-        if not git_source_data and stored_benchmark and hasattr(stored_benchmark, "metadata") and stored_benchmark.metadata:
+        if (
+            not git_source_data
+            and stored_benchmark
+            and hasattr(stored_benchmark, "metadata")
+            and stored_benchmark.metadata
+        ):
             custom_task_data = stored_benchmark.metadata.get("custom_task", {})
             git_data = custom_task_data.get("git", {})
             if git_data and "url" in git_data:
-                logger.info(f"Found git URL in stored_benchmark metadata: {git_data.get('url')}")
+                logger.info(
+                    f"Found git URL in stored_benchmark metadata: {git_data.get('url')}"
+                )
                 git_source_data = {
                     "url": git_data.get("url"),
                     "branch": git_data.get("branch"),
@@ -373,11 +424,7 @@ class LMEvalCRBuilder:
         if git_source_data:
             logger.info(f"Adding customTasks to CR with git data: {git_source_data}")
 
-            custom_tasks_section = {
-                "source": {
-                    "git": {}
-                }
-            }
+            custom_tasks_section = {"source": {"git": {}}}
 
             for key, value in git_source_data.items():
                 if value is not None:
@@ -385,11 +432,15 @@ class LMEvalCRBuilder:
 
             cr_dict["spec"]["taskList"]["customTasks"] = custom_tasks_section
 
-            logger.info(f"Added customTasks to CR: {json.dumps(custom_tasks_section, indent=2)}")
+            logger.info(
+                f"Added customTasks to CR: {json.dumps(custom_tasks_section, indent=2)}"
+            )
         else:
             logger.warning("No git source data found for customTasks")
 
-        logger.info(f"Final CR after customTasks processing: {json.dumps(cr_dict, indent=2)}")
+        logger.info(
+            f"Final CR after customTasks processing: {json.dumps(cr_dict, indent=2)}"
+        )
 
         # if "pod" in cr_dict.get("spec", {}) and "container" in cr_dict["spec"]["pod"]:
         #     container = cr_dict["spec"]["pod"]["container"]
@@ -404,7 +455,9 @@ class LMEvalCRBuilder:
 class LMEval(Eval, BenchmarksProtocolPrivate):
     def __init__(self, config: LMEvalEvalProviderConfig):
         self._config = config
-        logger.info(f"LMEval provider initialized with namespace: {getattr(self._config, 'namespace', 'default')}")
+        logger.info(
+            f"LMEval provider initialized with namespace: {getattr(self._config, 'namespace', 'default')}"
+        )
         logger.info(f"LMEval provider config values: {vars(self._config)}")
         self.benchmarks = {}
         self._jobs: List[Job] = []
@@ -417,7 +470,8 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         if self.use_k8s:
             self._init_k8s_client()
             self._cr_builder = LMEvalCRBuilder(
-                namespace=self._namespace, service_account=getattr(self._config, "service_account", None)
+                namespace=self._namespace,
+                service_account=getattr(self._config, "service_account", None),
             )
             self._cr_builder._config = self._config
 
@@ -475,9 +529,13 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         benchmark = self.benchmarks.get(benchmark_id)
         if benchmark:
             # FIXME: Remove debug logging
-            logger.info(f"Retrieved benchmark {benchmark_id} with metadata: {benchmark.metadata}")
+            logger.info(
+                f"Retrieved benchmark {benchmark_id} with metadata: {benchmark.metadata}"
+            )
             if "custom_task" in benchmark.metadata:
-                logger.info(f"Benchmark {benchmark_id} has custom_task: {benchmark.metadata.get('custom_task')}")
+                logger.info(
+                    f"Benchmark {benchmark_id} has custom_task: {benchmark.metadata.get('custom_task')}"
+                )
         return benchmark
 
     async def register_benchmark(self, benchmark: Benchmark) -> None:
@@ -491,7 +549,9 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         if hasattr(benchmark, "metadata") and benchmark.metadata:
             logger.info(f"Registering benchmark with metadata: {benchmark.metadata}")
             if "custom_task" in benchmark.metadata:
-                logger.info(f"Benchmark has custom_task: {benchmark.metadata.get('custom_task')}")
+                logger.info(
+                    f"Benchmark has custom_task: {benchmark.metadata.get('custom_task')}"
+                )
         self.benchmarks[benchmark.identifier] = benchmark
 
     async def run_eval(
@@ -519,12 +579,18 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
             stored_benchmark = await self.get_benchmark(benchmark_id)
             if stored_benchmark:
-                logger.info(f"Retrieved benchmark from storage: {stored_benchmark.identifier}")
+                logger.info(
+                    f"Retrieved benchmark from storage: {stored_benchmark.identifier}"
+                )
                 logger.info(f"Stored benchmark metadata: {stored_benchmark.metadata}")
                 if "custom_task" in stored_benchmark.metadata:
-                    logger.info(f"Stored benchmark has custom_task: {stored_benchmark.metadata.get('custom_task')}")
+                    logger.info(
+                        f"Stored benchmark has custom_task: {stored_benchmark.metadata.get('custom_task')}"
+                    )
                 else:
-                    logger.warning(f"Stored benchmark does NOT have custom_task in metadata")
+                    logger.warning(
+                        f"Stored benchmark does NOT have custom_task in metadata"
+                    )
             else:
                 logger.warning(f"Benchmark {benchmark_id} not found in storage")
 
@@ -536,45 +602,67 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 if "env" in benchmark_config.metadata:
                     env_data = benchmark_config.metadata.get("env")
                     if isinstance(env_data, dict):
-                        logger.info(f"Request includes environment variables: {json.dumps(env_data, indent=2)}")
+                        logger.info(
+                            f"Request includes environment variables: {json.dumps(env_data, indent=2)}"
+                        )
                     else:
-                        logger.warning("Request includes env section but it's not a valid dictionary")
+                        logger.warning(
+                            "Request includes env section but it's not a valid dictionary"
+                        )
 
                 if "custom_task" in benchmark_config.metadata:
-                    logger.info(f"Request includes custom_task: {benchmark_config.metadata.get('custom_task')}")
+                    logger.info(
+                        f"Request includes custom_task: {benchmark_config.metadata.get('custom_task')}"
+                    )
                     custom_task = benchmark_config.metadata.get("custom_task")
                     if isinstance(custom_task, dict) and "git" in custom_task:
                         git_data = custom_task.get("git")
                         if isinstance(git_data, dict) and "url" in git_data:
-                            logger.info(f"Request includes custom_task with git URL: {git_data.get('url')}")
+                            logger.info(
+                                f"Request includes custom_task with git URL: {git_data.get('url')}"
+                            )
                         else:
-                            logger.warning("Request includes custom_task with git section but missing required URL")
+                            logger.warning(
+                                "Request includes custom_task with git section but missing required URL"
+                            )
                     else:
-                        logger.warning("Request includes custom_task but missing or invalid git section")
+                        logger.warning(
+                            "Request includes custom_task but missing or invalid git section"
+                        )
                 else:
                     logger.info("No custom_task found in request metadata")
             else:
                 logger.info("No metadata provided in request benchmark config")
 
             config_limit = None
-            if hasattr(benchmark_config, "num_examples") and benchmark_config.num_examples is not None:
+            if (
+                hasattr(benchmark_config, "num_examples")
+                and benchmark_config.num_examples is not None
+            ):
                 config_limit = str(benchmark_config.num_examples)
                 logger.info(f"Using example limit from config: {config_limit}")
 
             if (
-                hasattr(benchmark_config, "metadata") and
-                benchmark_config.metadata and
-                "env" in benchmark_config.metadata
+                hasattr(benchmark_config, "metadata")
+                and benchmark_config.metadata
+                and "env" in benchmark_config.metadata
             ):
                 env_data = benchmark_config.metadata.get("env", {})
                 if isinstance(env_data, dict):
                     # Initialize
-                    if not hasattr(benchmark_config, "env_vars") or benchmark_config.env_vars is None:
+                    if (
+                        not hasattr(benchmark_config, "env_vars")
+                        or benchmark_config.env_vars is None
+                    ):
                         benchmark_config.env_vars = []
 
                     for key, value in env_data.items():
-                        benchmark_config.env_vars.append({"name": key, "value": str(value)})
-                    logger.info(f"Added environment variables from metadata.env to benchmark_config")
+                        benchmark_config.env_vars.append(
+                            {"name": key, "value": str(value)}
+                        )
+                    logger.info(
+                        f"Added environment variables from metadata.env to benchmark_config"
+                    )
 
             cr = self._cr_builder.create_cr(
                 benchmark_id=benchmark_id,
@@ -598,7 +686,9 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
             task_list = cr.get("spec", {}).get("taskList", {})
             if "customTasks" in task_list:
-                logger.info(f"CR includes customTasks section: {json.dumps(task_list['customTasks'], indent=2)}")
+                logger.info(
+                    f"CR includes customTasks section: {json.dumps(task_list['customTasks'], indent=2)}"
+                )
             else:
                 logger.warning("CR does not include customTasks section")
 
@@ -609,7 +699,11 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
             _job_id = f"lmeval-job-{len(self._jobs)}"
 
-            _job = Job(job_id=_job_id, status=JobStatus.scheduled, metadata={"created_at": str(time())})
+            _job = Job(
+                job_id=_job_id,
+                status=JobStatus.scheduled,
+                metadata={"created_at": str(time())},
+            )
             self._jobs.append(_job)
 
             self._job_metadata[_job_id] = {}
@@ -620,15 +714,25 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 version = "v1alpha1"
                 plural = "lmevaljobs"
 
-                logger.info(f"Deploying LMEval CR to Kubernetes namespace: {self._namespace}")
-
-                logger.info(f"Full CR being submitted to Kubernetes: \n{yaml.dump(cr, default_flow_style=False)}")
-
-                response = self._k8s_custom_api.create_namespaced_custom_object(
-                    group=group, version=version, namespace=self._namespace, plural=plural, body=cr
+                logger.info(
+                    f"Deploying LMEval CR to Kubernetes namespace: {self._namespace}"
                 )
 
-                logger.info(f"Successfully deployed LMEval CR to Kubernetes: {response['metadata']['name']}")
+                logger.info(
+                    f"Full CR being submitted to Kubernetes: \n{yaml.dump(cr, default_flow_style=False)}"
+                )
+
+                response = self._k8s_custom_api.create_namespaced_custom_object(
+                    group=group,
+                    version=version,
+                    namespace=self._namespace,
+                    plural=plural,
+                    body=cr,
+                )
+
+                logger.info(
+                    f"Successfully deployed LMEval CR to Kubernetes: {response['metadata']['name']}"
+                )
                 logger.info(f"CR creation response: {json.dumps(response, indent=2)}")
 
                 # Store the k8s resource name in our metadata store
@@ -670,19 +774,26 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             # FIXME: Placeholder
             generations = []
             for row in input_rows:
-                generation = {**row, "generated_answer": "Placeholder answer from LMEval"}
+                generation = {
+                    **row,
+                    "generated_answer": "Placeholder answer from LMEval",
+                }
                 generations.append(generation)
 
             scores = {}
             for scoring_fn in scoring_functions:
                 score_rows = [{"score": 0.5} for _ in input_rows]
-                scores[scoring_fn] = ScoringResult(aggregated_results={"accuracy": 0.5}, score_rows=score_rows)
+                scores[scoring_fn] = ScoringResult(
+                    aggregated_results={"accuracy": 0.5}, score_rows=score_rows
+                )
 
             return EvaluateResponse(generations=generations, scores=scores)
         else:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
 
-    async def job_status(self, benchmark_id: str, job_id: str) -> Optional[Dict[str, str]]:
+    async def job_status(
+        self, benchmark_id: str, job_id: str
+    ) -> Optional[Dict[str, str]]:
         """Get the status of a running evaluation job.
 
         Args:
@@ -710,7 +821,11 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 plural = "lmevaljobs"
 
                 cr = self._k8s_custom_api.get_namespaced_custom_object(
-                    group=group, version=version, namespace=self._namespace, plural=plural, name=k8s_name
+                    group=group,
+                    version=version,
+                    namespace=self._namespace,
+                    plural=plural,
+                    name=k8s_name,
                 )
 
                 status = cr.get("status", {})
@@ -718,7 +833,9 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 reason = status.get("reason", "")
                 message = status.get("message", "")
 
-                logger.info(f"Job {job_id} status: state={state}, reason={reason}, message={message}")
+                logger.info(
+                    f"Job {job_id} status: state={state}, reason={reason}, message={message}"
+                )
 
                 job_status = JobStatus.scheduled
                 if state == "Complete":
@@ -770,12 +887,18 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 plural = "lmevaljobs"
 
                 self._k8s_custom_api.delete_namespaced_custom_object(
-                    group=group, version=version, namespace=self._namespace, plural=plural, name=k8s_name
+                    group=group,
+                    version=version,
+                    namespace=self._namespace,
+                    plural=plural,
+                    name=k8s_name,
                 )
 
                 # Update job status
                 job.status = JobStatus.cancelled
-                logger.info(f"Successfully cancelled job {job_id} (K8s resource: {k8s_name})")
+                logger.info(
+                    f"Successfully cancelled job {job_id} (K8s resource: {k8s_name})"
+                )
 
             except ApiException as e:
                 logger.error(f"Failed to cancel job in Kubernetes: {e}")
@@ -811,7 +934,11 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 version = "v1alpha1"
                 plural = "lmevaljobs"
                 cr = self._k8s_custom_api.get_namespaced_custom_object(
-                    group=group, version=version, namespace=self._namespace, plural=plural, name=k8s_name
+                    group=group,
+                    version=version,
+                    namespace=self._namespace,
+                    plural=plural,
+                    name=k8s_name,
                 )
 
                 status = cr.get("status", {})
@@ -822,7 +949,10 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                     return EvaluateResponse(
                         generations=[],
                         scores={},
-                        metadata={"state": state, "message": status.get("message", "Job not complete")},
+                        metadata={
+                            "state": state,
+                            "message": status.get("message", "Job not complete"),
+                        },
                     )
 
                 # Extract the results JSON from the status
@@ -832,17 +962,24 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                     return EvaluateResponse(
                         generations=[],
                         scores={},
-                        metadata={"state": state, "reason": status.get("reason", ""), "message": "No results found"},
+                        metadata={
+                            "state": state,
+                            "reason": status.get("reason", ""),
+                            "message": "No results found",
+                        },
                     )
 
                 import json
+
                 try:
                     results = json.loads(results_str)
                     logger.info(f"Successfully parsed results JSON for job {job_id}")
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse results JSON: {e}")
                     return EvaluateResponse(
-                        generations=[], scores={}, metadata={"error": f"Invalid JSON in results field: {e}"}
+                        generations=[],
+                        scores={},
+                        metadata={"error": f"Invalid JSON in results field: {e}"},
                     )
 
                 from llama_stack.apis.scoring import ScoringResult
@@ -854,7 +991,10 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                             continue
 
                         for metric_key, metric_value in metrics.items():
-                            if not isinstance(metric_value, (int, float)) or metric_key == "alias":
+                            if (
+                                not isinstance(metric_value, (int, float))
+                                or metric_key == "alias"
+                            ):
                                 continue
 
                             if "," in metric_key:
@@ -865,7 +1005,8 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                             score_rows = [{"score": metric_value}]
 
                             scores[f"{task_name}:{metric_name}"] = ScoringResult(
-                                aggregated_results={metric_name: metric_value}, score_rows=score_rows
+                                aggregated_results={metric_name: metric_value},
+                                score_rows=score_rows,
                             )
 
                 generations = []
@@ -888,21 +1029,29 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                     "model_info": {
                         "model_name": results.get("model_name", ""),
                         "model_source": results.get("model_source", ""),
-                        "evaluation_time": results.get("total_evaluation_time_seconds", ""),
+                        "evaluation_time": results.get(
+                            "total_evaluation_time_seconds", ""
+                        ),
                     },
                     "config": results.get("config", {}),
                 }
 
                 job.status = JobStatus.completed
 
-                return EvaluateResponse(generations=generations, scores=scores, metadata=metadata)
+                return EvaluateResponse(
+                    generations=generations, scores=scores, metadata=metadata
+                )
 
             except Exception as e:
                 logger.error(f"Error retrieving job results: {e}")
-                return EvaluateResponse(generations=[], scores={}, metadata={"error": str(e)})
+                return EvaluateResponse(
+                    generations=[], scores={}, metadata={"error": str(e)}
+                )
         else:
             return EvaluateResponse(
-                generations=[], scores={}, metadata={"error": "Non-K8s implementation not available"}
+                generations=[],
+                scores={},
+                metadata={"error": "Non-K8s implementation not available"},
             )
 
     async def shutdown(self) -> None:
@@ -911,6 +1060,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         if self._k8s_client:
             self._k8s_client.close()
             logger.info("Closed Kubernetes client connection")
+
 
 async def get_adapter_impl(config: LMEvalEvalProviderConfig, _deps):
     return LMEval(config)
