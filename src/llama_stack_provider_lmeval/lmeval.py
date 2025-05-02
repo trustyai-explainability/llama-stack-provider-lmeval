@@ -174,6 +174,15 @@ class LMEvalCRBuilder:
         model_args.append(ModelArg(name="tokenizer", value="google/flan-t5-base"))
         model_args.append(ModelArg(name="num_concurrent", value="3"))
 
+        # Add TLS configuration (if present in config)
+        if hasattr(self._config, "tls") and self._config.tls is not None:
+            tls_value = str(self._config.tls)
+            logger.debug(
+                f"Adding TLS configuration to CR: verify_certificate={tls_value}"
+            )
+            model_args.append(ModelArg(name="verify_certificate", value=tls_value))
+
+
         return model_args
 
     def _collect_env_vars(
