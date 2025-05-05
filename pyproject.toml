@@ -12,5 +12,14 @@ dependencies = [
     "opentelemetry-exporter-otlp",
     "aiosqlite",
     "uvicorn",
-    "ipykernel"
+    "ipykernel",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "black", "isort"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_paths = ["src"]
+addopts = "-v"

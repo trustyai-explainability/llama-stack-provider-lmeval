@@ -1,1 +1,8 @@
 src/llama_stack_provider_lmeval.egg-info/*
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/.gitignore
+/.idea/llama-stack-provider-lmeval.iml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/vcs.xml
