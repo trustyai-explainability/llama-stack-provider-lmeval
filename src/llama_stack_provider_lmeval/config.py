@@ -13,7 +13,7 @@ from llama_stack.schema_utils import json_schema_type
 @json_schema_type
 @dataclass
 class LMEvalBenchmarkConfig(BenchmarkConfig):
-    """Configuration for LMEval benchmarkd
+    """Configuration for LMEval benchmarks
 
     The metadata field can contain custom configurations such as:
 
@@ -32,6 +32,9 @@ class LMEvalBenchmarkConfig(BenchmarkConfig):
     metadata: Optional[Dict[str, Any]] = None
     # Optional TLS certificate path (or False, to disable TLS verification)
     tls: Optional[Union[str, bool]] = None
+    # Optionally tokenize requests (or False to not tokenize requests)
+    tokenized_requests: Optional[bool] = None
+
 
     def __post_init__(self):
         """Validate the configuration"""
@@ -79,6 +82,8 @@ class LMEvalEvalProviderConfig:
     metadata: Optional[Dict[str, Any]] = None
     # Optional TLS certificate path (or False, to disable TLS verification)
     tls: Optional[Union[str, bool]] = None
+    # Optionally tokenize requests (or False to not tokenize requests)
+    tokenized_requests: Optional[bool] = None
 
     def __post_init__(self):
         """Validate the configuration"""
@@ -95,6 +100,12 @@ class LMEvalEvalProviderConfig:
             raise LMEvalConfigError(
                 "tls must be either a string path to a certificate or False"
             )
+        # Validate tokenized requests setting
+        if self.tokenized_requests and not isinstance(self.tokenized_requests, bool):
+            raise LMEvalConfigError(
+                "tokenized_requesrs must be a boolean value"
+            )
+
 
 
 __all__ = ["LMEvalBenchmarkConfig", "K8sLMEvalConfig", "LMEvalEvalProviderConfig"]
