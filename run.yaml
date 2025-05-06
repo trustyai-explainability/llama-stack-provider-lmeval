@@ -19,4 +19,5 @@ providers:
         use_k8s: True
         base_url: https://phi-3-predictor-llama-test.apps.rosa.p2i7w2k6p6w7t7e.3emk.p3.openshiftapps.com/v1/completions
         namespace: "llama-test"
+        tokenized_requests: False
 external_providers_dir: ./providers.d

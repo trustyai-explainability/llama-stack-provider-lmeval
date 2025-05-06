@@ -55,7 +55,6 @@ spec:
             - bash
             - -c
             - |
-              # model="ibm-granite/granite-7b-instruct"
               model="microsoft/Phi-3-mini-4k-instruct"
               echo "starting download"
               /tmp/venv/bin/huggingface-cli download $model --local-dir /mnt/models/llms/$(basename $model)
@@ -106,20 +105,3 @@ data:
   AWS_S3_ENDPOINT: aHR0cDovL21pbmlvLXBoaTM6OTAwMA==
   AWS_SECRET_ACCESS_KEY: VEhFU0VDUkVUS0VZ
 type: Opaque
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: user-one
----
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: user-one-view
-subjects:
-  - kind: ServiceAccount
-    name: user-one
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: view

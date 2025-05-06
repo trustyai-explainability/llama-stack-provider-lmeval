@@ -3,7 +3,7 @@ name = "llama-stack-provider-lmeval"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     "llama-stack @ git+https://github.com/meta-llama/llama-stack.git@release-0.2.2",
     "kubernetes",

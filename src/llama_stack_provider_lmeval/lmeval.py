@@ -4,7 +4,7 @@ import logging
 import json
 import yaml
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
@@ -32,7 +32,7 @@ class ModelArg(BaseModel):
 class ContainerConfig(BaseModel):
     """Container configuration for the LMEval CR."""
 
-    env: Optional[List[Dict[str, str]]] = None
+    env: Optional[List[Dict[str, Any]]] = None
 
 
 class PodConfig(BaseModel):
@@ -183,6 +183,15 @@ class LMEvalCRBuilder:
             )
             model_args.append(ModelArg(name="verify_certificate", value=tls_value))
 
+        # Add tokenized requests (if present in config)
+        if hasattr(self._config, "tokenized_requests") and self._config.tokenized_requests is not None:
+            tokenized_requests_value = str(self._config.tokenized_requests)
+            logger.debug(
+                f"Adding tokenized requests to CR: tokenized_requests={tokenized_requests_value}"
+            )
+            model_args.append(ModelArg(name="tokenized_requests", value=tokenized_requests_value))
+
+
         model_args.append(ModelArg(name="num_concurrent", value="1"))
 
         return model_args
@@ -200,19 +209,39 @@ class LMEvalCRBuilder:
             List of environment variables
         """
         env_vars = []
+
         if hasattr(task_config, "env_vars") and task_config.env_vars:
             env_vars = task_config.env_vars
+
+        def _parse_env_vars(metadata_env: Dict[Union[List, Dict]]) -> List[Union[Dict, List]]:
+            """Parse enviroment variables.
+
+            Args:
+                metadata_env: Environment variables from the metadata
+
+            Returns:
+                List of parsed environment variables
+            """
+            parsed_env_vars = []
+            # Parse environment variables of a nested dictionary type
+            # eg. env": {"OPENAI_API_KEY": {"valueFrom": {"secretKeyRef": {"name": "user-one-token", key": "token"}}}
+            if isinstance(metadata_env, dict):
+                for key, value in metadata_env.items():
+                    if isinstance(value, dict) and "valueFrom" in value:
+                        parsed_env_vars.append({"name": key, "valueFrom": value["valueFrom"]})
+            # Parse environment variables of a list type
+            elif isinstance(metadata_env, list):
+                for item in metadata_env:
+                    if isinstance(item, dict) and "name" in item:
+                        parsed_env_vars.append(item)
+            return parsed_env_vars
 
         # Get environment variables from metadata
         if hasattr(task_config, "metadata") and task_config.metadata:
             metadata_env = task_config.metadata.get("env")
             if metadata_env and isinstance(metadata_env, dict):
                 logger.debug(f"Found environment variables in metadata: {metadata_env}")
-                for key, value in metadata_env.items():
-                    env_vars.append({"name": key, "value": str(value)})
-                    logger.debug(
-                        f"Added environment variable from metadata: {key}={value}"
-                    )
+                env_vars.extend(_parse_env_vars(metadata_env))
 
         # Get environment variables from stored benchmark metadata
         if (
@@ -226,11 +255,7 @@ class LMEvalCRBuilder:
                 logger.debug(
                     f"Found environment variables in stored benchmark metadata: {metadata_env}"
                 )
-                for key, value in metadata_env.items():
-                    env_vars.append({"name": key, "value": str(value)})
-                    logger.debug(
-                        f"Added environment variable from stored benchmark metadata: {key}={value}"
-                    )
+                env_vars.extend(_parse_env_vars(metadata_env))
 
         return env_vars
 
@@ -255,7 +280,7 @@ class LMEvalCRBuilder:
 
         return task_name
 
-    def _create_pod_config(self, env_vars: List[Dict[str, str]]) -> Optional[PodConfig]:
+    def _create_pod_config(self, env_vars: List[Dict[str, Any]]) -> Optional[PodConfig]:
         """Create pod configuration with environment variables.
 
         Args:
@@ -267,19 +292,30 @@ class LMEvalCRBuilder:
         if not env_vars and not self._service_account:
             return None
 
-        # Add environment variables to the container config
-        container_config = ContainerConfig(
-            env=(
-                [{"name": e["name"], "value": e["value"]} for e in env_vars]
-                if env_vars
-                else None
-            )
-        )
+        def create_env_config(env: Dict):
+            """Create environment variable configuration,
 
-        # Add service account to the pod config
+            Args:
+                env: enviroment variable of name/valueFrom or name/value format
+
+            Returns:
+                Eviroment variable dictionary
+            """
+            if "valueFrom" in env:
+                return {"name": env["name"], "valueFrom": env["valueFrom"]}
+            elif "value" in env:
+                return {"name": env["name"], "value": env["value"]}
+            else:
+                logger.warning(f"Invalid env var format: {env}")
+                return None
+
+        env_config = [create_env_config(e) for e in env_vars if create_env_config(e)]
+
+        container_config = ContainerConfig(env=env_config)
+
         pod_config = PodConfig(
-            container=container_config, serviceAccountName=self._service_account
-        )
+                container=container_config, serviceAccountName=self._service_account
+            )
 
         if env_vars:
             logger.debug(

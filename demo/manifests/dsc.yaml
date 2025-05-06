@@ -1,0 +1,48 @@
+apiVersion: datasciencecluster.opendatahub.io/v1
+kind: DataScienceCluster
+metadata:
+  labels:
+    app.kubernetes.io/created-by: rhods-operator
+    app.kubernetes.io/instance: default-dsc
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: datasciencecluster
+    app.kubernetes.io/part-of: rhods-operator
+  name: default-dsc
+spec:
+  components:
+    codeflare:
+      managementState: Removed
+    kserve:
+      managementState: Managed
+      nim:
+        managementState: Managed
+      serving:
+        ingressGateway:
+          certificate:
+            type: OpenshiftDefaultIngress
+        managementState: Managed
+        name: knative-serving
+    modelregistry:
+      managementState: Removed
+      registriesNamespace: rhoai-model-registries
+    trustyai:
+      devFlags:
+        manifests:
+          - contextDir: config
+            sourcePath: ''
+            uri: 'https://github.com/christinaexyou/trustyai-service-operator/tarball/llamastack-ootp-lmeval'
+      managementState: Managed
+    ray:
+      managementState: Removed
+    kueue:
+      managementState: Removed
+    workbenches:
+      managementState: Removed
+    dashboard:
+      managementState: Managed
+    modelmeshserving:
+      managementState: Managed
+    datasciencepipelines:
+      managementState: Removed
+    trainingoperator:
+      managementState: Removed
