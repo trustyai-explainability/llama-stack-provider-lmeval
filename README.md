@@ -1,5 +1,7 @@
 # TrustyAI LM-Eval as and Out-of-Tree Llama Stack Provider
 
+[![PyPI version](https://img.shields.io/pypi/v/llama_stack_provider_lmeval.svg)](https://pypi.org/project/llama-stack-provider-lmeval/)
+
 This repository implements [TrustyAI's LM-Eval](https://trustyai-explainability.github.io/trustyai-site/main/lm-eval-tutorial.html) as an out-of-tree Llama Stack remote provider.
 
 It also includes an end-to-end instructions demonstratring how one can use LM-Eval on LLama Stack to run benchmark evaluations over [DK-Bench](https://github.com/instructlab/instructlab/blob/main/src/instructlab/model/evaluate.py#L30) on a deployed [Phi-3-mini-4k-instruct](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct) model via OpenShift.
