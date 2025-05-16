@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Any, Union
 from pydantic import Field
 
 from llama_stack.apis.eval import BenchmarkConfig, EvalCandidate
-from src.llama_stack_provider_lmeval.errors import LMEvalConfigError
+from .errors import LMEvalConfigError
 from llama_stack.schema_utils import json_schema_type
 
 
