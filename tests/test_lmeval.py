@@ -186,6 +186,39 @@ class TestLMEvalCRBuilder(unittest.TestCase):
             "Tokenizer value should match the value specified in the request's metadata",
         )
 
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_create_cr_with_tokenized_requests(self, mock_logger):
+        """Creating CR with tokenized_requests specified in metadata."""
+        config = LMEvalEvalProviderConfig(
+            namespace=self.namespace,
+            service_account=self.service_account,
+        )
+        self.builder._config = config
+
+        self.benchmark_config.metadata = {"tokenized_requests": False}
+
+        cr = self.builder.create_cr(
+            benchmark_id="lmeval::mmlu",
+            task_config=self.benchmark_config,
+            base_url="http://my-model-url",
+            limit="10",
+            stored_benchmark=self.stored_benchmark,
+        )
+
+        model_args = cr.get("spec", {}).get("modelArgs", [])
+        tokenized_requests_args = [arg for arg in model_args if arg.get("name") == "tokenized_requests"]
+
+        self.assertEqual(
+            len(tokenized_requests_args),
+            1,
+            "tokenized_requests should be present when specified in the request's metadata",
+        )
+        self.assertEqual(
+            tokenized_requests_args[0].get("value"),
+            "False",
+            "tokenized_requests value should match the value specified in the request's metadata",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
