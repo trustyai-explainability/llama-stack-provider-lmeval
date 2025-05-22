@@ -424,6 +424,18 @@ class LMEvalCRBuilder:
                 logger.debug(f"Using custom tokenizer from metadata: {tokenizer_value}")
                 model_args.append(ModelArg(name="tokenizer", value=tokenizer_value))
 
+        # Add tokenized_requests parameter if present in metadata
+        if (
+            hasattr(task_config, "metadata")
+            and task_config.metadata
+            and "tokenized_requests" in task_config.metadata
+        ):
+            tokenized_requests_value = task_config.metadata.get("tokenized_requests")
+            if isinstance(tokenized_requests_value, (bool, str)) and tokenized_requests_value is not None:
+                value_str = str(tokenized_requests_value)
+                logger.debug(f"Using tokenized_requests from metadata: {value_str}")
+                model_args.append(ModelArg(name="tokenized_requests", value=value_str))
+
         # Collect environment variables
         env_vars = self._collect_env_vars(task_config, stored_benchmark)
 
