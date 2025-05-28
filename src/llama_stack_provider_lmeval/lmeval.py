@@ -185,6 +185,22 @@ class LMEvalCRBuilder:
 
         model_args.append(ModelArg(name="num_concurrent", value="1"))
 
+        # Add tokenized requests parameter if present in config
+        if hasattr(self._config, "tokenized_requests") and self._config.tokenized_requests is not None:
+            tokenized_requests_value = str(self._config.tokenized_requests)
+            logger.debug(
+                f"Adding tokenized_requests to CR: {tokenized_requests_value}"
+            )
+            model_args.append(ModelArg(name="tokenized_requests", value=tokenized_requests_value))
+
+        #  Add tokenizer if specified in the config
+        if hasattr(self._config, "tokenizer") and self._config.tokenizer is not None:
+            tokenizer_name  = str(self._config.tokenizer)
+            logger.debug(
+                f"Adding tokenized_requests to CR: {tokenizer_name}"
+            )
+            model_args.append(ModelArg(name="tokenizer", value=tokenizer_name))
+
         return model_args
 
     def _collect_env_vars(

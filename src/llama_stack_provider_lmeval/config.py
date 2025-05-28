@@ -75,10 +75,12 @@ class LMEvalEvalProviderConfig:
     # Service account to use for Kubernetes deployment
     service_account: Optional[str] = None
     # Default tokenizer to use when none is specified in the ModelCandidate
-    default_tokenizer: str = "google/flan-t5-base"
+    tokenizer: str = "google/flan-t5-base"
     metadata: Optional[Dict[str, Any]] = None
     # Optional TLS certificate path (or False, to disable TLS verification)
     tls: Optional[Union[str, bool]] = None
+    # Tokenize requests (by default, set to False, to disable tokenization)
+    tokenized_requests: bool = False
 
     def __post_init__(self):
         """Validate the configuration"""
@@ -95,6 +97,9 @@ class LMEvalEvalProviderConfig:
             raise LMEvalConfigError(
                 "tls must be either a string path to a certificate or False"
             )
+        #  Validate tokenizer setting
+        if not isinstance(self.tokenized_requests, bool):
+            raise LMEvalConfigError("tokenized_requests must be a boolean")
 
 
 __all__ = ["LMEvalBenchmarkConfig", "K8sLMEvalConfig", "LMEvalEvalProviderConfig"]

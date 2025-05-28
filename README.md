@@ -89,7 +89,7 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
 
 9. Start the llama stack server in a virtual enviornment
     ```
-    llama stack run ../run.yaml --image-type venv
+    llama stack run run.yaml --image-type venv
     ```
 
     Expected output:
