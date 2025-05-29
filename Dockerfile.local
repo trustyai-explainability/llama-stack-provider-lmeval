@@ -1,0 +1,53 @@
+# Dockerfile for llama-stack-provider-lmeval (Local Development)
+ARG PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    wget \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for fast Python package management
+RUN pip install --no-cache-dir uv
+
+# Set environment variable for uv to use system Python
+ENV UV_SYSTEM_PYTHON=1
+
+# Copy project files first (for better layer caching)
+COPY pyproject.toml README.md LICENSE ./
+
+# Install dependencies
+RUN uv pip install --no-cache -e ".[dev]"
+
+# Copy source code
+COPY src/ ./src/
+COPY tests/ ./tests/
+COPY pytest.ini ./
+
+# Copy demo and configuration files
+COPY demo/ ./demo/
+COPY providers.d/ ./providers.d/
+COPY run.yaml ./run.yaml
+
+# Create directories for llama stack with proper permissions
+RUN mkdir -p /.llama/providers.d /.cache && \
+    chmod -R 777 /.llama /.cache
+
+# Remove uv after installation (following Meta's pattern)
+RUN pip uninstall -y uv
+
+# Expose port
+EXPOSE 8321
+
+# Set Python path
+ENV PYTHONPATH=/app/src:$PYTHONPATH
+
+# Default entrypoint
+ENTRYPOINT ["python", "-m", "llama_stack.distribution.server.server"]
+CMD ["--help"]

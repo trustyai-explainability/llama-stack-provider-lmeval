@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  llama-stack-lmeval:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: llama-stack-lmeval:local
+    ports:
+      - "8321:8321"
+    volumes:
+      # Mount your run.yaml config file
+      - ./run.yaml:/app/run.yaml:ro
+      # Mount external providers directory
+      - ./providers.d:/app/providers.d:ro
+      # Mount source code for development (optional)
+      - ./src:/app/src:ro
+      # Mount tests for running them
+      - ./tests:/app/tests:ro
+    environment:
+      - PYTHONPATH=/app/src
+      # Environment variables that can be overridden
+      - VLLM_URL=${VLLM_URL:-https://phi-3-predictor-llama-test.apps.rosa.p2i7w2k6p6w7t7e.3emk.p3.openshiftapps.com/v1/completions}
+      - VLLM_MAX_TOKENS=${VLLM_MAX_TOKENS:-4096}
+      - VLLM_API_TOKEN=${VLLM_API_TOKEN:-fake}
+      - VLLM_TLS_VERIFY=${VLLM_TLS_VERIFY:-true}
+    # Override default command to use your config
+    command: ["--config", "/app/run.yaml"]
+    # Or use this to run tests instead:
+    # command: ["python", "-m", "pytest", "tests/", "-v"]
+
+  # Service for running tests only
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: llama-stack-lmeval:local
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./pytest.ini:/app/pytest.ini:ro
+    environment:
+      - PYTHONPATH=/app/src
+    command: ["python", "-m", "pytest", "tests/", "-v"]
+    profiles: ["test"]
+
+  # Service for development with shell access
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: llama-stack-lmeval:local
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./run.yaml:/app/run.yaml
+      - ./providers.d:/app/providers.d
+    environment:
+      - PYTHONPATH=/app/src
+    command: ["bash"]
+    stdin_open: true
+    tty: true
+    profiles: ["dev"]
