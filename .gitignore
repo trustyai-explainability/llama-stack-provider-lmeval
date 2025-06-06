@@ -1,4 +1,5 @@
 src/llama_stack_provider_lmeval.egg-info/*
+src/llama_stack_provider_lmeval/__pycache__/
 /.idea/inspectionProfiles/profiles_settings.xml
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/.gitignore
