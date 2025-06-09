@@ -162,7 +162,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         self.builder._config = config
 
         tokenizer = "google/flan-t5-base"
-        self.benchmark_config.metadata = {"tokenizer": tokenizer}
+        self.stored_benchmark.metadata = {"tokenizer": tokenizer}
 
         cr = self.builder.create_cr(
             benchmark_id="lmeval::mmlu",
@@ -195,7 +195,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         )
         self.builder._config = config
 
-        self.benchmark_config.metadata = {"tokenized_requests": False}
+        self.stored_benchmark.metadata = {"tokenized_requests": False}
 
         cr = self.builder.create_cr(
             benchmark_id="lmeval::mmlu",
