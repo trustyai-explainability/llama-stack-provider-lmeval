@@ -4,7 +4,8 @@
 
 This repository implements [TrustyAI's LM-Eval](https://trustyai-explainability.github.io/trustyai-site/main/lm-eval-tutorial.html) as an out-of-tree Llama Stack remote provider.
 
-It also includes an end-to-end instructions demonstratring how one can use LM-Eval on LLama Stack to run benchmark evaluations over [DK-Bench](https://github.com/instructlab/instructlab/blob/main/src/instructlab/model/evaluate.py#L30) on a deployed [Phi-3-mini-4k-instruct](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct) model via OpenShift.
+It also includes an end-to-end instructions demonstrating how one can use LM-Eval on LLama Stack to run benchmark evaluations over [DK-Bench](https://github.com/instructlab/instructlab/blob/main/src/instructlab/model/evaluate.py#L30) on a deployed [Phi-3-mini-4k-instruct](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct) model via OpenShift.
+
 
 ## Use
 ### Prerequsites
@@ -18,9 +19,9 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
     git clone https://github.com/trustyai-explainability/llama-stack-provider-lmeval.git
     ```
 
-2. Set `llama-stack-provider-lmeval/demo` as your working directory.
+2. Set `llama-stack-provider-lmeval` as your working directory.
     ```
-    cd llama-stack-provider-lmeval/demo
+    cd llama-stack-provider-lmeval
     ```
 
 3. Deploy `microsoft/Phi-3-mini-4k-instruct` on vLLM Serving Runtime
@@ -34,7 +35,7 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
 
     b. Deploy the model via vLLM
     ```bash
-    oc apply -k resources/kustomization.yaml
+    oc apply -k demos/resources/kustomization.yaml
     ```
 
 4. Before continuing, preform a sanity check to make sure the model was sucessfully deployed
@@ -47,11 +48,7 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
     phi-3-predictor-00002-deployment-794fb6b4b-clhj7   3/3     Running   0          5h55m
     ```
 
-5. Retrive the model route
-    ```
-    VLLM_URL=$(oc get $(oc get ksvc -o name | grep predictor) --template={{.status.url}})
-    ```
-6. Create and activate a virtual enviornment
+5. Create and activate a virtual enviornment
     ```
     uv venv .llamastack-venv
     ```
@@ -60,36 +57,21 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
     source .llamastack-venv/bin/activate
     ```
 
-7. Install the required libraries
+6. Install the required libraries
     ```
     uv pip install -e .
     ```
 
-8. In the `run.yaml`, make the following changes:
-
-    a. Replace the `remote::vllm` url
+7. Define the following ennvironment variables
     ```
-    providers:
-        inference:
-        - provider_id: vllm-0
-            provider_type: remote::vllm
-            config:
-            url: ${env.VLLM_URL:https://phi-3-predictor-llama-test.apps.rosa.p2i7w2k6p6w7t7e.3emk.p3.openshiftapps.com/v1/completions}
+    export VLLM_URL=https://$(oc get $(oc get ksvc -o name | grep predictor) --template={{.status.url}})/v1/completions
+
+    export NAMESPACE=$(oc project | cut -d '"' -f2)
     ```
 
-    b. Replace the `remote::lmeval` base_url and namespace
+8. Start the llama stack server in a virtual enviornment
     ```
-    - provider_id: lmeval-1
-        provider_type: remote::lmeval
-        config:
-            use_k8s: True
-            base_url: https://vllm-test.apps.rosa.p2i7w2k6p6w7t7e.3emk.p3.openshiftapps.com/v1/completions
-            namespace: "llama-test"
-    ```
-
-9. Start the llama stack server in a virtual enviornment
-    ```
-    llama stack run ../run.yaml --image-type venv
+    llama stack run run.yaml --image-type venv
     ```
 
     Expected output:
@@ -98,4 +80,4 @@ It also includes an end-to-end instructions demonstratring how one can use LM-Ev
     INFO:     Uvicorn running on http://['::', '0.0.0.0']:8321 (Press CTRL+C to quit)
     ```
 
-10. Navigate to `demo.ipynb` to run evaluation
+9. Navigate to `demos/demo.ipynb` to run evaluations
