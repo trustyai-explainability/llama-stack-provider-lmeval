@@ -1,9 +1,7 @@
 src/llama_stack_provider_lmeval.egg-info/*
 src/llama_stack_provider_lmeval/__pycache__/
-/.idea/inspectionProfiles/profiles_settings.xml
-/.idea/inspectionProfiles/Project_Default.xml
-/.idea/.gitignore
-/.idea/llama-stack-provider-lmeval.iml
-/.idea/misc.xml
-/.idea/modules.xml
-/.idea/vcs.xml
+.idea
+.mypy_cache/
+build/
+.pytest_cache/
+__pycache__/
