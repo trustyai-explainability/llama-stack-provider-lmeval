@@ -1,21 +1,22 @@
 from __future__ import annotations
 
-import logging
 import json
-import yaml
-from datetime import datetime
+import logging
+import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import yaml
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
-from pydantic import BaseModel, Field
-
 from llama_stack.apis.benchmarks import Benchmark, ListBenchmarksResponse
 from llama_stack.apis.common.job_types import Job, JobStatus
 from llama_stack.apis.eval import BenchmarkConfig, Eval, EvaluateResponse
 from llama_stack.apis.scoring import ScoringResult
 from llama_stack.providers.datatypes import BenchmarksProtocolPrivate
+from pydantic import BaseModel
+
 from .config import LMEvalEvalProviderConfig
 from .errors import LMEvalConfigError, LMEvalTaskNameError
 
@@ -511,11 +512,74 @@ class LMEvalCRBuilder:
         return cr_dict
 
 
+def _resolve_namespace(config: LMEvalEvalProviderConfig) -> str:
+    """Resolve the namespace.
+    1. Namespace check in the provider config
+    2. If missing, read from environment variable TRUSTYAI_LM_EVAL_NAMESPACE
+    3. If all above missing, use current namespace from service account or pod environment.
+
+    Args:
+        config: The LMEval provider configuration
+
+    Returns:
+        The resolved namespace string
+
+    """  # noqa: D205, E501
+    # Check if namespace is explicitly set in the provider config
+    if hasattr(config, "namespace") and isinstance(config.namespace, str):
+        namespace = config.namespace.strip()
+        if namespace:
+            logger.debug(f"Using namespace from provider config: {namespace}")
+            return namespace
+
+    # Check from environment variable
+    env_namespace = os.getenv('TRUSTYAI_LM_EVAL_NAMESPACE')  # noqa: Q000
+    if env_namespace:
+        logger.debug(f"Using namespace from environment variable: {env_namespace}")
+        return env_namespace
+
+    # Check from service account namespace file
+    service_account_namespace_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    if Path(service_account_namespace_path).exists():
+        try:
+            with open(service_account_namespace_path, 'r') as f:
+                namespace = f.read().strip()
+                if namespace:
+                    logger.debug(f"Using namespace from service account: {namespace}")
+                    return namespace
+        except OSError as e:
+            logger.warning(f"Failed to read namespace from service account: {e}")
+
+    # Check for POD_NAMESPACE environment variable
+    pod_namespace = os.getenv("POD_NAMESPACE")
+    if pod_namespace:
+        logger.debug(f"Using namespace from POD_NAMESPACE environment variable: {pod_namespace}")
+        return pod_namespace
+
+    # Check for NAMESPACE environment variable
+    alt_namespace = os.getenv('NAMESPACE')  # noqa: Q000
+    if alt_namespace:
+        logger.debug(f"Using namespace from NAMESPACE environment variable: {alt_namespace}")
+        return alt_namespace
+
+    # No namespace found - fail explicitly
+    raise LMEvalConfigError(  # noqa: TRY003
+        "Unable to determine namespace. Please specify one of the following:\n"  # noqa: EM101
+        "1. Set 'namespace' in your run.yaml provider config\n"
+        "2. Set TRUSTYAI_LM_EVAL_NAMESPACE environment variable\n"
+        "3. Ensure pod has access to service account namespace file\n"
+        "4. Set POD_NAMESPACE or NAMESPACE environment variables",
+    )
+
+
 class LMEval(Eval, BenchmarksProtocolPrivate):
     def __init__(self, config: LMEvalEvalProviderConfig):
         self._config = config
+        
+        self._namespace = _resolve_namespace(self._config)
+        
         logger.debug(
-            f"LMEval provider initialized with namespace: {getattr(self._config, 'namespace', 'default')}"
+            f"LMEval provider initialized with namespace: {self._namespace}"
         )
         logger.debug(f"LMEval provider config values: {vars(self._config)}")
         self.benchmarks = {}
@@ -524,10 +588,9 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         self._k8s_client = None
         self._k8s_custom_api = None
-        self._namespace = getattr(self._config, "namespace", "default")
-        logger.debug(f"Initialized Kubernetes client with namespace: {self._namespace}")
         if self.use_k8s:
             self._init_k8s_client()
+            logger.debug(f"Initialized Kubernetes client with namespace: {self._namespace}")
             self._cr_builder = LMEvalCRBuilder(
                 namespace=self._namespace,
                 service_account=getattr(self._config, "service_account", None),
