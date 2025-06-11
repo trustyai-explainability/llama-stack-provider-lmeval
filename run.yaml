@@ -8,7 +8,7 @@ providers:
     - provider_id: vllm
       provider_type: remote::vllm
       config:
-        url: ${env.VLLM_URL:https://phi-3-predictor-llama-test.apps.rosa.p2i7w2k6p6w7t7e.3emk.p3.openshiftapps.com/v1/completions}
+        url: ${env.VLLM_URL:http://localhost:8000/v1}
         max_tokens: ${env.VLLM_MAX_TOKENS:4096}
         api_token: ${env.VLLM_API_TOKEN:fake}
         tls_verify: ${env.VLLM_TLS_VERIFY:true}
@@ -17,6 +17,6 @@ providers:
       provider_type: remote::trustyai_lmeval
       config:
         use_k8s: True
-        base_url: https://phi-3-predictor-llama-test.apps.rosa.p2i7w2k6p6w7t7e.3emk.p3.openshiftapps.com/v1/completions
-        namespace: "llama-test"
+        base_url: ${env.VLLM_URL:http://localhost:8000/v1}
+        namespace: ${env.TRUSTYAI_LM_EVAL_NAMESPACE}
 external_providers_dir: ./providers.d
