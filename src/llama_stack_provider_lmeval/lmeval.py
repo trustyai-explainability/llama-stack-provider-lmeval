@@ -588,9 +588,9 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         self._k8s_client = None
         self._k8s_custom_api = None
-        logger.debug(f"Initialized Kubernetes client with namespace: {self._namespace}")
         if self.use_k8s:
             self._init_k8s_client()
+            logger.debug(f"Initialized Kubernetes client with namespace: {self._namespace}")
             self._cr_builder = LMEvalCRBuilder(
                 namespace=self._namespace,
                 service_account=getattr(self._config, "service_account", None),
