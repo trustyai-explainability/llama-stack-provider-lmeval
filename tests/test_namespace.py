@@ -96,6 +96,44 @@ class TestNamespaceResolution(unittest.TestCase):
         mock_logger.debug.assert_called_with("Using namespace from service account: service-account-namespace")
 
     @patch('llama_stack_provider_lmeval.lmeval.Path')
+    def test_namespace_from_empty_service_account_file(self, mock_path):
+        """Test namespace resolution when service account file is empty or whitespace."""
+        class MockConfig:
+            pass
+        
+        config = MockConfig()
+        os.environ['TRUSTYAI_LM_EVAL_NAMESPACE'] = 'trustyai-namespace'
+        
+        mock_path_instance = mock_path.return_value
+        mock_path_instance.exists.return_value = True
+        
+        with patch('builtins.open', mock_open(read_data='')):
+            with patch('llama_stack_provider_lmeval.lmeval.logger') as mock_logger:
+                namespace = _resolve_namespace(config)
+        
+        self.assertEqual(namespace, "trustyai-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from environment variable: trustyai-namespace")
+
+    @patch('llama_stack_provider_lmeval.lmeval.Path')
+    def test_namespace_from_whitespace_service_account_file(self, mock_path):
+        """Test namespace resolution when service account file contains only whitespace."""
+        class MockConfig:
+            pass
+        
+        config = MockConfig()
+        os.environ['POD_NAMESPACE'] = 'pod-namespace'
+        
+        mock_path_instance = mock_path.return_value
+        mock_path_instance.exists.return_value = True
+        
+        with patch('builtins.open', mock_open(read_data='   \n\t  ')):
+            with patch('llama_stack_provider_lmeval.lmeval.logger') as mock_logger:
+                namespace = _resolve_namespace(config)
+        
+        self.assertEqual(namespace, "pod-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from POD_NAMESPACE environment variable: pod-namespace")
+
+    @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_pod_namespace_env_var(self, mock_path):
         """Test namespace resolution from POD_NAMESPACE environment variable."""
         class MockConfig:
