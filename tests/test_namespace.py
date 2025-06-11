@@ -114,6 +114,24 @@ class TestNamespaceResolution(unittest.TestCase):
         mock_logger.debug.assert_called_with("Using namespace from POD_NAMESPACE environment variable: pod-namespace")
 
     @patch('llama_stack_provider_lmeval.lmeval.Path')
+    def test_namespace_from_namespace_env_var(self, mock_path):
+        """Test namespace resolution from NAMESPACE environment variable."""
+        class MockConfig:
+            pass
+        
+        config = MockConfig()
+        os.environ['NAMESPACE'] = 'generic-namespace'
+        
+        mock_path_instance = mock_path.return_value
+        mock_path_instance.exists.return_value = False
+        
+        with patch('llama_stack_provider_lmeval.lmeval.logger') as mock_logger:
+            namespace = _resolve_namespace(config)
+            
+        self.assertEqual(namespace, "generic-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from NAMESPACE environment variable: generic-namespace")
+
+    @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_resolution_priority(self, mock_path):
         """Test that namespace resolution follows right order."""
         config = LMEvalEvalProviderConfig(namespace="config-namespace")
