@@ -547,7 +547,7 @@ def _resolve_namespace(config: LMEvalEvalProviderConfig) -> str:
                 if namespace:
                     logger.debug(f"Using namespace from service account: {namespace}")
                     return namespace
-        except Exception as e:
+        except OSError as e:
             logger.warning(f"Failed to read namespace from service account: {e}")
 
     # Check for POD_NAMESPACE environment variable
