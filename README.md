@@ -2,14 +2,13 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/llama_stack_provider_lmeval.svg)](https://pypi.org/project/llama-stack-provider-lmeval/)
 
+## About
 This repository implements [TrustyAI's LM-Eval](https://trustyai-explainability.github.io/trustyai-site/main/lm-eval-tutorial.html) as an out-of-tree Llama Stack remote provider.
-
-It also includes an end-to-end instructions demonstrating how one can use LM-Eval on LLama Stack to run benchmark evaluations over [DK-Bench](https://github.com/instructlab/instructlab/blob/main/src/instructlab/model/evaluate.py#L30) on a deployed [Phi-3-mini-4k-instruct](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct) model via OpenShift.
-
 
 ## Use
 ### Prerequsites
 * Admin access to an OpenShift cluster with RHOAI installed
+* Login to your OpenShift cluster with `oc login --token=<TOKEN> --server=<SERVER>`
 * Installation of `uv`
 * Installation of `oc` cli tool
 * Installation of `llama stack` cli tool
@@ -66,7 +65,7 @@ It also includes an end-to-end instructions demonstrating how one can use LM-Eva
     ```
     export VLLM_URL=https://$(oc get $(oc get ksvc -o name | grep predictor) --template={{.status.url}})/v1/completions
 
-    export NAMESPACE=$(oc project | cut -d '"' -f2)
+    export TRUSTYAI_LM_EVAL_NAMESPACE=$(oc project | cut -d '"' -f2)
     ```
 
 8. Start the llama stack server in a virtual enviornment
@@ -80,4 +79,4 @@ It also includes an end-to-end instructions demonstrating how one can use LM-Eva
     INFO:     Uvicorn running on http://['::', '0.0.0.0']:8321 (Press CTRL+C to quit)
     ```
 
-9. Navigate to `demos/demo.ipynb` to run evaluations
+9. Navigate to `demos/` to run the demo notebooks
