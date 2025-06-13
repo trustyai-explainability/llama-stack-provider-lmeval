@@ -526,11 +526,9 @@ def _resolve_namespace(config: LMEvalEvalProviderConfig) -> str:
 
     """  # noqa: D205, E501
     # Check if namespace is explicitly set in the provider config
-    if hasattr(config, "namespace") and isinstance(config.namespace, str):
-        namespace = config.namespace.strip()
-        if namespace:
-            logger.debug(f"Using namespace from provider config: {namespace}")
-            return namespace
+    if config.namespace:
+        logger.debug(f"Using namespace from provider config: {config.namespace}")
+        return config.namespace.strip()
 
     # Check from environment variable
     env_namespace = os.getenv('TRUSTYAI_LM_EVAL_NAMESPACE')  # noqa: Q000

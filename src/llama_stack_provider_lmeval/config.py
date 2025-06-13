@@ -70,7 +70,7 @@ class LMEvalEvalProviderConfig:
     use_k8s: bool = True
     # FIXME: Hardcoded just for debug purposes
     base_url: str = "http://llamastack-service:8321"
-    namespace: str = "test"
+    namespace: str | None = None
     kubeconfig_path: Optional[str] = None
     # Service account to use for Kubernetes deployment
     service_account: Optional[str] = None
