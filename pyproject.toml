@@ -13,6 +13,9 @@ dependencies = [
     "aiosqlite",
     "uvicorn",
     "ipykernel",
+    "pydantic>=2.0",
+    "pyyaml",
+    "litellm",
 ]
 
 [project.optional-dependencies]

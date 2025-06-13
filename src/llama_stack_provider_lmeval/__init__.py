@@ -29,8 +29,6 @@ async def get_adapter_impl(
         if deps is None:
             deps = {}
 
-
-
         # Extract base_url from config if available
         base_url = None
         if hasattr(config, "model_args") and config.model_args:
@@ -52,5 +50,4 @@ __all__ = [
     # Configurations
     "LMEval",
     "get_provider_spec",
-
 ]
