@@ -65,10 +65,7 @@ class TestNamespaceResolution(unittest.TestCase):
 
     def test_namespace_from_trustyai_env_var(self):
         """Test namespace resolution from TRUSTYAI_LM_EVAL_NAMESPACE environment variable."""
-        class MockConfig:
-            pass
-        
-        config = MockConfig()
+        config = LMEvalEvalProviderConfig()
         os.environ['TRUSTYAI_LM_EVAL_NAMESPACE'] = 'trustyai-namespace'
         
         with patch('llama_stack_provider_lmeval.lmeval.logger') as mock_logger:
@@ -80,10 +77,7 @@ class TestNamespaceResolution(unittest.TestCase):
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_service_account_file(self, mock_path):
         """Test namespace resolution from service account file."""
-        class MockConfig:
-            pass
-        
-        config = MockConfig()
+        config = LMEvalEvalProviderConfig()
         
         mock_path_instance = mock_path.return_value
         mock_path_instance.exists.return_value = True
@@ -98,10 +92,8 @@ class TestNamespaceResolution(unittest.TestCase):
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_empty_service_account_file(self, mock_path):
         """Test namespace resolution when service account file is empty or whitespace."""
-        class MockConfig:
-            pass
-        
-        config = MockConfig()
+
+        config = LMEvalEvalProviderConfig()
         os.environ['TRUSTYAI_LM_EVAL_NAMESPACE'] = 'trustyai-namespace'
         
         mock_path_instance = mock_path.return_value
@@ -117,10 +109,8 @@ class TestNamespaceResolution(unittest.TestCase):
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_whitespace_service_account_file(self, mock_path):
         """Test namespace resolution when service account file contains only whitespace."""
-        class MockConfig:
-            pass
         
-        config = MockConfig()
+        config = LMEvalEvalProviderConfig()
         os.environ['POD_NAMESPACE'] = 'pod-namespace'
         
         mock_path_instance = mock_path.return_value
@@ -136,10 +126,7 @@ class TestNamespaceResolution(unittest.TestCase):
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_pod_namespace_env_var(self, mock_path):
         """Test namespace resolution from POD_NAMESPACE environment variable."""
-        class MockConfig:
-            pass
-        
-        config = MockConfig()
+        config = LMEvalEvalProviderConfig()
         os.environ['POD_NAMESPACE'] = 'pod-namespace'
         
         mock_path_instance = mock_path.return_value
@@ -154,10 +141,7 @@ class TestNamespaceResolution(unittest.TestCase):
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_namespace_env_var(self, mock_path):
         """Test namespace resolution from NAMESPACE environment variable."""
-        class MockConfig:
-            pass
-        
-        config = MockConfig()
+        config = LMEvalEvalProviderConfig()
         os.environ['NAMESPACE'] = 'generic-namespace'
         
         mock_path_instance = mock_path.return_value
@@ -189,10 +173,7 @@ class TestNamespaceResolution(unittest.TestCase):
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_resolution_failure(self, mock_path):
         """Test that function raises exception when no namespace is found."""
-        class MockConfig:
-            pass
-        
-        config = MockConfig()
+        config = LMEvalEvalProviderConfig()
         
         mock_path_instance = mock_path.return_value
         mock_path_instance.exists.return_value = False
