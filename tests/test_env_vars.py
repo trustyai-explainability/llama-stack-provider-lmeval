@@ -11,7 +11,7 @@ from llama_stack.apis.benchmarks import Benchmark
 
 
 class TestEnvironmentVariables(unittest.TestCase):
-    """Test environment variable handling in LMEval CR creation."""
+    """Test environment variable handling in CR creation."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -398,9 +398,10 @@ class TestEnvironmentVariables(unittest.TestCase):
         self.assertNotIn("value", secret_var)
 
     def test_logging_debug_output(self):
-        """Test that debug logging is called with processed environment variables."""
+        """Test that debug logging is called with environment variable names only (no sensitive data)."""
         env_vars = [
-            {"name": "TEST_VAR", "value": "test_value"}
+            {"name": "TEST_VAR", "value": "test_value"},
+            {"name": "SECRET_VAR", "secret": {"name": "my-secret", "key": "secret-key"}}
         ]
         
         with patch('llama_stack_provider_lmeval.lmeval.logger') as mock_logger:
@@ -409,9 +410,16 @@ class TestEnvironmentVariables(unittest.TestCase):
             # Verify that debug logging was called
             mock_logger.debug.assert_called()
             
-            # Check that the debug message includes the processed env vars
+            # Check that the debug message includes only variable names, not values or secrets
             debug_call_args = mock_logger.debug.call_args[0][0]
             self.assertIn("Setting pod environment variables:", debug_call_args)
+            self.assertIn("TEST_VAR", debug_call_args)
+            self.assertIn("SECRET_VAR", debug_call_args)
+            # Ensure no sensitive data is logged
+            self.assertNotIn("test_value", debug_call_args)
+            self.assertNotIn("my-secret", debug_call_args)
+            self.assertNotIn("secret-key", debug_call_args)
+            self.assertNotIn("valueFrom", debug_call_args)
 
 
 if __name__ == '__main__':

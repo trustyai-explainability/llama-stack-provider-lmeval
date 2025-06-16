@@ -214,13 +214,13 @@ class LMEvalCRBuilder:
                         # Handle Kubernetes secret reference structure
                         env_vars.append({"name": key, "secret": value["secret"]})
                         logger.debug(
-                            f"Added secret environment variable from metadata: {key}=<secret>"
+                            f"Added secret environment variable from metadata: {key}"
                         )
                     else:
                         # Handle simple string value
                         env_vars.append({"name": key, "value": str(value)})
                         logger.debug(
-                            f"Added environment variable from metadata: {key}={value}"
+                            f"Added environment variable from metadata: {key}"
                         )
 
         # Get environment variables from stored benchmark metadata
@@ -240,7 +240,7 @@ class LMEvalCRBuilder:
                         # Handle Kubernetes secret reference structure
                         env_vars.append({"name": key, "secret": value["secret"]})
                         logger.debug(
-                            f"Added secret environment variable from stored benchmark metadata: {key}=<secret>"
+                            f"Added secret environment variable from stored benchmark metadata: {key}"
                         )
                     else:
                         # Handle simple string value
