@@ -334,7 +334,7 @@ class LMEvalCRBuilder:
             processed_env_vars.append(env_entry)
 
         # Add environment variables to the container config
-        container_config = ContainerConfig(env=processed_env_vars if processed_env_vars else None)
+        container_config = ContainerConfig(env=processed_env_vars or None)
 
         # Add service account to the pod config
         pod_config = PodConfig(
