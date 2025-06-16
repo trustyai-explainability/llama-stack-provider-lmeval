@@ -246,7 +246,7 @@ class LMEvalCRBuilder:
                         # Handle simple string value
                         env_vars.append({"name": key, "value": str(value)})
                         logger.debug(
-                            f"Added environment variable from stored benchmark metadata: {key}={value}"
+                            f"Added environment variable from stored benchmark metadata: {key}"
                         )
 
         return env_vars
@@ -303,7 +303,7 @@ class LMEvalCRBuilder:
                 else:
                     # Invalid secret structure, fall back to simple value
                     logger.warning(
-                        f"Invalid secret structure for env var '{env_var.get('name', '<unknown>')}': {secret_ref}. "
+                        f"Invalid secret structure for env var '{env_var.get('name', '<unknown>')}'. "
                         "Expected a dict with 'name' and 'key'. Falling back to simple value."
                     )
                     env_entry["value"] = str(env_var.get("value", ""))
@@ -342,8 +342,9 @@ class LMEvalCRBuilder:
         )
 
         if env_vars:
+            env_var_names = [env_var["name"] for env_var in processed_env_vars]
             logger.debug(
-                f"Setting pod environment variables: {json.dumps(processed_env_vars, indent=2)}"
+                f"Setting pod environment variables: {', '.join(env_var_names)}"
             )
 
         return pod_config
