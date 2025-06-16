@@ -302,6 +302,10 @@ class LMEvalCRBuilder:
                     }
                 else:
                     # Invalid secret structure, fall back to simple value
+                    logger.warning(
+                        f"Invalid secret structure for env var '{env_var.get('name', '<unknown>')}': {secret_ref}. "
+                        "Expected a dict with 'name' and 'key'. Falling back to simple value."
+                    )
                     env_entry["value"] = str(env_var.get("value", ""))
             else:
                 # Handle value field (simple or complex structures)
