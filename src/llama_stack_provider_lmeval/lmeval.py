@@ -33,7 +33,7 @@ class ModelArg(BaseModel):
 class ContainerConfig(BaseModel):
     """Container configuration for the LMEval CR."""
 
-    env: Optional[List[Dict[str, str]]] = None
+    env: Optional[List[Dict[str, Any]]] = None
 
 
 class PodConfig(BaseModel):
@@ -190,7 +190,7 @@ class LMEvalCRBuilder:
 
     def _collect_env_vars(
         self, task_config: BenchmarkConfig, stored_benchmark: Optional[Benchmark]
-    ) -> List[Dict[str, str]]:
+    ) -> List[Dict[str, Any]]:
         """Collect environment variables.
 
         Args:
@@ -210,10 +210,18 @@ class LMEvalCRBuilder:
             if metadata_env and isinstance(metadata_env, dict):
                 logger.debug(f"Found environment variables in metadata: {metadata_env}")
                 for key, value in metadata_env.items():
-                    env_vars.append({"name": key, "value": str(value)})
-                    logger.debug(
-                        f"Added environment variable from metadata: {key}={value}"
-                    )
+                    if isinstance(value, dict) and "secret" in value:
+                        # Handle Kubernetes secret reference structure
+                        env_vars.append({"name": key, "secret": value["secret"]})
+                        logger.debug(
+                            f"Added secret environment variable from metadata: {key}"
+                        )
+                    else:
+                        # Handle simple string value
+                        env_vars.append({"name": key, "value": str(value)})
+                        logger.debug(
+                            f"Added environment variable from metadata: {key}"
+                        )
 
         # Get environment variables from stored benchmark metadata
         if (
@@ -228,10 +236,18 @@ class LMEvalCRBuilder:
                     f"Found environment variables in stored benchmark metadata: {metadata_env}"
                 )
                 for key, value in metadata_env.items():
-                    env_vars.append({"name": key, "value": str(value)})
-                    logger.debug(
-                        f"Added environment variable from stored benchmark metadata: {key}={value}"
-                    )
+                    if isinstance(value, dict) and "secret" in value:
+                        # Handle Kubernetes secret reference structure
+                        env_vars.append({"name": key, "secret": value["secret"]})
+                        logger.debug(
+                            f"Added secret environment variable from stored benchmark metadata: {key}"
+                        )
+                    else:
+                        # Handle simple string value
+                        env_vars.append({"name": key, "value": str(value)})
+                        logger.debug(
+                            f"Added environment variable from stored benchmark metadata: {key}"
+                        )
 
         return env_vars
 
@@ -256,7 +272,7 @@ class LMEvalCRBuilder:
 
         return task_name
 
-    def _create_pod_config(self, env_vars: List[Dict[str, str]]) -> Optional[PodConfig]:
+    def _create_pod_config(self, env_vars: List[Dict[str, Any]]) -> Optional[PodConfig]:
         """Create pod configuration with environment variables.
 
         Args:
@@ -268,14 +284,57 @@ class LMEvalCRBuilder:
         if not env_vars and not self._service_account:
             return None
 
+        # Process environment variables to handle both simple values and secret references
+        processed_env_vars = []
+        for env_var in env_vars:
+            env_entry = {"name": env_var["name"]}
+            
+            # Check if this env var has a secret reference
+            if "secret" in env_var and env_var["secret"]:
+                # Custom secret structure: name/value/secret
+                secret_ref = env_var["secret"]
+                if isinstance(secret_ref, dict) and "name" in secret_ref and "key" in secret_ref:
+                    env_entry["valueFrom"] = {
+                        "secretKeyRef": {
+                            "name": secret_ref["name"],
+                            "key": secret_ref["key"]
+                        }
+                    }
+                else:
+                    # Invalid secret structure, fall back to simple value
+                    logger.warning(
+                        f"Invalid secret structure for env var '{env_var.get('name', '<unknown>')}'. "
+                        "Expected a dict with 'name' and 'key'. Falling back to simple value."
+                    )
+                    env_entry["value"] = str(env_var.get("value", ""))
+            else:
+                # Handle value field (simple or complex structures)
+                value = env_var.get("value")
+                if isinstance(value, str) and value.startswith("{") and value.endswith("}"):
+                    # A stringified dict, parse it
+                    try:
+                        import ast
+                        parsed_value = ast.literal_eval(value)
+                        if isinstance(parsed_value, dict) and "valueFrom" in parsed_value:
+                            # Use the parsed valueFrom structure
+                            env_entry.update(parsed_value)
+                        else:
+                            # Use as simple string value
+                            env_entry["value"] = value
+                    except (ValueError, SyntaxError):
+                        # If parsing fails, use as simple string value
+                        env_entry["value"] = value
+                elif isinstance(value, dict):
+                    # Direct dict structure (e.g., valueFrom)
+                    env_entry.update(value)
+                else:
+                    # Simple string value
+                    env_entry["value"] = str(value) if value is not None else ""
+            
+            processed_env_vars.append(env_entry)
+
         # Add environment variables to the container config
-        container_config = ContainerConfig(
-            env=(
-                [{"name": e["name"], "value": e["value"]} for e in env_vars]
-                if env_vars
-                else None
-            )
-        )
+        container_config = ContainerConfig(env=processed_env_vars or None)
 
         # Add service account to the pod config
         pod_config = PodConfig(
@@ -283,8 +342,9 @@ class LMEvalCRBuilder:
         )
 
         if env_vars:
+            env_var_names = [env_var["name"] for env_var in processed_env_vars]
             logger.debug(
-                f"Setting pod environment variables: {json.dumps(env_vars, indent=2)}"
+                f"Setting pod environment variables: {', '.join(env_var_names)}"
             )
 
         return pod_config
