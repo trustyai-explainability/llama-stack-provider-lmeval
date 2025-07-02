@@ -69,6 +69,51 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should treat V1 as different from v1
         self.assertEqual(result, "http://example.com/V1/v1/openai/v1/completions")
 
+    def test_build_openai_url_with_v1_and_query_params(self):
+        """Test building OpenAI URL when base URL ends with /v1 and has query parameters."""
+        base_url = "http://example.com/v1?param=value&other=test"
+        result = LMEvalCRBuilder._build_openai_url(base_url)
+        # Query parameters should be preserved but v1 not detected at end
+        self.assertEqual(result, "http://example.com/v1?param=value&other=test/v1/openai/v1/completions")
+
+    def test_build_openai_url_with_v1_and_fragment(self):
+        """Test building OpenAI URL when base URL ends with /v1 and has fragment."""
+        base_url = "http://example.com/v1#section"
+        result = LMEvalCRBuilder._build_openai_url(base_url)
+        # Fragment should be preserved but v1 not detected at end
+        self.assertEqual(result, "http://example.com/v1#section/v1/openai/v1/completions")
+
+    def test_build_openai_url_with_v1_query_params_and_fragment(self):
+        """Test building OpenAI URL when base URL ends with /v1 and has both query params and fragment."""
+        base_url = "http://example.com/v1?param=value#section"
+        result = LMEvalCRBuilder._build_openai_url(base_url)
+        # Both query params and fragment should be preserved but v1 not detected at end
+        self.assertEqual(result, "http://example.com/v1?param=value#section/v1/openai/v1/completions")
+
+    # Tests for the _create_model_args method integration
+    def test_create_model_args_without_base_url(self):
+        """Test creating model args without base_url (None)."""
+        model_name = "test-model"
+        
+        result = self.builder._create_model_args(model_name, None)
+        
+        # Should have model and num_concurrent args only
+        self.assertEqual(len(result), 2)
+        
+        # Check model arg
+        model_arg = next((arg for arg in result if arg.name == "model"), None)
+        self.assertIsNotNone(model_arg)
+        self.assertEqual(model_arg.value, model_name)
+        
+        # Check num_concurrent arg
+        concurrent_arg = next((arg for arg in result if arg.name == "num_concurrent"), None)
+        self.assertIsNotNone(concurrent_arg)
+        self.assertEqual(concurrent_arg.value, "1")
+        
+        # Should not have base_url arg
+        base_url_arg = next((arg for arg in result if arg.name == "base_url"), None)
+        self.assertIsNone(base_url_arg)
+
     def test_create_model_args_with_regular_base_url(self):
         """Test creating model args with regular base_url (not ending with /v1)."""
         model_name = "test-model"
