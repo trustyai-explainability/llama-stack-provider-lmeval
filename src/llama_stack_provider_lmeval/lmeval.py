@@ -157,6 +157,25 @@ class LMEvalCRBuilder:
         self._service_account = service_account
         self._config = None
 
+    @staticmethod
+    def _build_openai_url(base_url: str) -> str:
+        """Build OpenAI-compatible URL from base URL.
+
+        Args:
+            base_url: The base URL for the model service
+
+        Returns:
+            OpenAI-compatible URL with proper path structure
+        """
+        # Strip trailing slashes
+        cleaned_url = base_url.rstrip("/")
+        
+        # Check if URL already ends with v1
+        if cleaned_url.endswith("/v1"):
+            return f"{cleaned_url}/openai/v1/completions"
+        else:
+            return f"{cleaned_url}/v1/openai/v1/completions"
+
     def _create_model_args(
         self, model_name: str, base_url: Optional[str] = None
     ) -> List[ModelArg]:
@@ -172,8 +191,7 @@ class LMEvalCRBuilder:
         model_args = [ModelArg(name="model", value=model_name)]
 
         if base_url:
-            base_url = base_url.rstrip("/")
-            openai_base_url = f"{base_url}/v1/openai/v1/completions"
+            openai_base_url = self._build_openai_url(base_url)
             model_args.append(ModelArg(name="base_url", value=openai_base_url))
 
         # Add TLS configuration (if present in config)
