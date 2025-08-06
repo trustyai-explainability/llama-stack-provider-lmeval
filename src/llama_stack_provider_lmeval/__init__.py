@@ -1,7 +1,9 @@
 import logging
 from typing import Dict, Optional
 
-from llama_stack.distribution.datatypes import Api, ProviderSpec
+from llama_stack.apis.datatypes import Api
+from llama_stack.providers.datatypes import ProviderSpec
+
 from .config import LMEvalEvalProviderConfig
 from .lmeval import LMEval
 from .provider import get_provider_spec

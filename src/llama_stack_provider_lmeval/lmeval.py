@@ -172,9 +172,9 @@ class LMEvalCRBuilder:
         
         # Check if URL already ends with v1
         if cleaned_url.endswith("/v1"):
-            return f"{cleaned_url}/openai/v1/completions"
+            return f"{cleaned_url}/completions"
         else:
-            return f"{cleaned_url}/v1/openai/v1/completions"
+            return f"{cleaned_url}/v1/completions"
 
     def _create_model_args(
         self, model_name: str, base_url: Optional[str] = None
