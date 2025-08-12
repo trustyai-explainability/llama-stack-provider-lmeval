@@ -98,10 +98,9 @@ jobs:
           optional_api_dependencies: []
           EOF
 
-      - name: Build and push Docker image
+      - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: build-context
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          file: build-context/Containerfile
+          push: false
