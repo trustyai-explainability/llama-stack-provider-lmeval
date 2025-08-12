@@ -1,0 +1,106 @@
+name: Build PR Container Image
+
+on:
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: quay.io
+  IMAGE_NAME: trustyai/llama-stack-lmeval
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix={{branch}}-,format=short
+
+      - name: Create temporary build directory
+        run: |
+          mkdir -p build-context
+          
+      - name: Copy provider code to build context
+        run: |
+          cp -r src/ build-context/
+          cp -r providers.d/ build-context/
+          cp run.yaml build-context/
+          cp pyproject.toml build-context/
+
+      - name: Create modified Containerfile
+        run: |
+          cat > build-context/Containerfile << 'EOF'
+          FROM registry.access.redhat.com/ubi9/python-312:latest
+          WORKDIR /opt/app-root
+          
+          # Copy the local provider code
+          COPY src/ /opt/app-root/src/
+          COPY pyproject.toml /opt/app-root/
+          
+          RUN pip install sqlalchemy
+          RUN pip install \
+              aiosqlite \
+              autoevals \
+              datasets \
+              fastapi \
+              fire \
+              httpx \
+              kubernetes \
+              "openai==1.66.0" \
+              opentelemetry-exporter-otlp-proto-http \
+              opentelemetry-sdk \
+              pandas \
+              requests \
+              sqlalchemy[asyncio] \
+              uvicorn
+          RUN pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          RUN pip install --no-deps sentence-transformers
+          RUN pip install --no-cache llama-stack==0.2.16
+          
+          # Install the local provider package
+          RUN pip install -e /opt/app-root/
+          
+          RUN mkdir -p ${HOME}/.llama/providers.d ${HOME}/.cache
+          COPY run.yaml ${APP_ROOT}/run.yaml
+          COPY providers.d/ ${HOME}/.llama/providers.d/
+          
+          ENTRYPOINT ["python", "-m", "llama_stack.distribution.server.server", "--config", "/opt/app-root/run.yaml"]
+          EOF
+
+      - name: Create modified provider config
+        run: |
+          mkdir -p build-context/providers.d/remote/eval
+          cat > build-context/providers.d/remote/eval/trustyai_lmeval.yaml << 'EOF'
+          adapter:
+            adapter_type: lmeval
+            pip_packages: ["kubernetes"]
+            config_class: llama_stack_provider_lmeval.config.LMEvalEvalProviderConfig
+            module: llama_stack_provider_lmeval
+          api_dependencies: ["inference"]
+          optional_api_dependencies: []
+          EOF
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: build-context
+          file: build-context/Containerfile
+          push: false
