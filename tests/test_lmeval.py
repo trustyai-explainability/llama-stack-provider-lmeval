@@ -1,7 +1,10 @@
+"""Tests for the LMEval provider functionality."""
+
 import unittest
 from unittest.mock import patch, MagicMock
+import os
 
-from src.llama_stack_provider_lmeval.config import LMEvalEvalProviderConfig
+from src.llama_stack_provider_lmeval.config import LMEvalEvalProviderConfig, TLSConfig
 from src.llama_stack_provider_lmeval.lmeval import LMEvalCRBuilder
 
 
@@ -22,6 +25,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         self.benchmark_config.eval_candidate.sampling_params = {}
         self.benchmark_config.env_vars = []
         self.benchmark_config.metadata = {}
+        self.benchmark_config.model = "test-model"  # Add this for _create_model_args
 
         self.stored_benchmark = MagicMock()
         self.stored_benchmark.metadata = {}
@@ -32,7 +36,6 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         config = LMEvalEvalProviderConfig(
             namespace=self.namespace,
             service_account=self.service_account,
-            tls=None,
         )
         self.builder._config = config
 
@@ -61,7 +64,6 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         config = LMEvalEvalProviderConfig(
             namespace=self.namespace,
             service_account=self.service_account,
-            tls=False,
         )
         self.builder._config = config
 
@@ -80,23 +82,45 @@ class TestLMEvalCRBuilder(unittest.TestCase):
 
         self.assertEqual(
             len(verify_cert_args),
-            1,
-            "CR TLS configuration should be present when passed to the configuration",
-        )
-        self.assertEqual(
-            verify_cert_args[0].get("value"),
-            "False",
-            "TLS configuration value should be 'False'",
+            0,
+            "CR TLS configuration should be missing when not provided in the configuration",
         )
 
     @patch("src.llama_stack_provider_lmeval.lmeval.logger")
     def test_create_cr_with_tls_certificate_path(self, mock_logger):
         """Creating CR with TLS certificate path."""
-        cert_path = "/path/to/certificate.crt"
         config = LMEvalEvalProviderConfig(
             namespace=self.namespace,
             service_account=self.service_account,
-            tls=cert_path,
+        )
+        self.builder._config = config
+
+        cr = self.builder.create_cr(
+            benchmark_id="lmeval::mmlu",
+            task_config=self.benchmark_config,
+            base_url="http://my-model-url",
+            limit="10",
+            stored_benchmark=self.stored_benchmark,
+        )
+
+        model_args = cr.get("spec", {}).get("modelArgs", [])
+        verify_cert_args = [
+            arg for arg in model_args if arg.get("name") == "verify_certificate"
+        ]
+
+        self.assertEqual(
+            len(verify_cert_args),
+            0,
+            "TLS configuration should be missing when not provided in the configuration",
+        )
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch.dict(os.environ, {"TRUSTYAI_LMEVAL_TLS": "true"})
+    def test_create_cr_with_env_tls_true(self, mock_logger):
+        """Creating CR with TLS verification enabled via environment variable."""
+        config = LMEvalEvalProviderConfig(
+            namespace=self.namespace,
+            service_account=self.service_account,
         )
         self.builder._config = config
 
@@ -116,13 +140,133 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         self.assertEqual(
             len(verify_cert_args),
             1,
-            "TLS configuration should be present when tls is passed to the configuration",
+            "CR TLS configuration should be present when TRUSTYAI_LMEVAL_TLS is True",
         )
         self.assertEqual(
             verify_cert_args[0].get("value"),
-            cert_path,
-            "TLS configuration value should be a certificate path",
+            "True",
+            "TLS configuration value should be 'True'",
         )
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch.dict(os.environ, {
+        "TRUSTYAI_LMEVAL_TLS": "true",
+        "TRUSTYAI_LMEVAL_CERT_FILE": "custom-ca.pem",
+        "TRUSTYAI_LMEVAL_CERT_SECRET": "vllm-ca-bundle"
+    })
+    def test_create_cr_with_env_tls_certificate(self, mock_logger):
+        """Creating CR with TLS certificate path via environment variables."""
+        config = LMEvalEvalProviderConfig(
+            namespace=self.namespace,
+            service_account=self.service_account,
+        )
+        self.builder._config = config
+
+        cr = self.builder.create_cr(
+            benchmark_id="lmeval::mmlu",
+            task_config=self.benchmark_config,
+            base_url="http://my-model-url",
+            limit="10",
+            stored_benchmark=self.stored_benchmark,
+        )
+
+        model_args = cr.get("spec", {}).get("modelArgs", [])
+        verify_cert_args = [
+            arg for arg in model_args if arg.get("name") == "verify_certificate"
+        ]
+
+        self.assertEqual(
+            len(verify_cert_args),
+            1,
+            "CR TLS configuration should be present when TLS certificate is configured",
+        )
+        self.assertEqual(
+            verify_cert_args[0].get("value"),
+            "/etc/ssl/certs/custom-ca.pem",
+            "TLS configuration value should be the full mounted certificate path",
+        )
+
+        # Check that volumes and volume mounts are created
+        pod_config = cr.get("spec", {}).get("pod", {})
+        self.assertIsNotNone(pod_config.get("volumes"), "Pod should have volumes for TLS certificate")
+        self.assertIsNotNone(pod_config.get("container", {}).get("volumeMounts"), "Container should have volume mounts for TLS certificate")
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_create_cr_with_provider_config_tls_true(self, mock_logger):
+        """Creating CR with TLS verification enabled via provider config (backward compatibility)."""
+        config = LMEvalEvalProviderConfig(
+            namespace=self.namespace,
+            service_account=self.service_account,
+            tls=TLSConfig(enable=True),
+        )
+        self.builder._config = config
+
+        cr = self.builder.create_cr(
+            benchmark_id="lmeval::mmlu",
+            task_config=self.benchmark_config,
+            base_url="http://my-model-url",
+            limit="10",
+            stored_benchmark=self.stored_benchmark,
+        )
+
+        model_args = cr.get("spec", {}).get("modelArgs", [])
+        verify_cert_args = [
+            arg for arg in model_args if arg.get("name") == "verify_certificate"
+        ]
+
+        self.assertEqual(
+            len(verify_cert_args),
+            1,
+            "CR TLS configuration should be present when provider config tls is enabled",
+        )
+        self.assertEqual(
+            verify_cert_args[0].get("value"),
+            "True",
+            "TLS configuration value should be 'True'",
+        )
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_create_cr_with_provider_config_tls_certificate(self, mock_logger):
+        """Creating CR with TLS certificate path via provider config (backward compatibility)."""
+        config = LMEvalEvalProviderConfig(
+            namespace=self.namespace,
+            service_account=self.service_account,
+            tls=TLSConfig(
+                enable=True,
+                cert_file="custom-ca.pem",
+                cert_secret="vllm-ca-bundle"
+            ),
+        )
+        self.builder._config = config
+
+        cr = self.builder.create_cr(
+            benchmark_id="lmeval::mmlu",
+            task_config=self.benchmark_config,
+            base_url="http://my-model-url",
+            limit="10",
+            stored_benchmark=self.stored_benchmark,
+        )
+
+        model_args = cr.get("spec", {}).get("modelArgs", [])
+        verify_cert_args = [
+            arg for arg in model_args if arg.get("name") == "verify_certificate"
+        ]
+
+        self.assertEqual(
+            len(verify_cert_args),
+            1,
+            "CR TLS configuration should be present when provider config tls is set",
+        )
+        self.assertEqual(
+            verify_cert_args[0].get("value"),
+            "/etc/ssl/certs/custom-ca.pem",
+            "TLS configuration value should be the full mounted certificate path",
+        )
+
+        # Check that volumes and volume mounts are created
+        pod_config = cr.get("spec", {}).get("pod", {})
+        self.assertIsNotNone(pod_config.get("volumes"), "Pod should have volumes for TLS certificate")
+        self.assertIsNotNone(pod_config.get("container", {}).get("volumeMounts"), "Container should have volume mounts for TLS certificate")
 
     @patch("src.llama_stack_provider_lmeval.lmeval.logger")
     def test_create_cr_without_tokenizer(self, mock_logger):

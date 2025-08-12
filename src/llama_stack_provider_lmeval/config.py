@@ -1,13 +1,34 @@
+"""Configuration classes for the LMEval provider."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Union
-
-from pydantic import Field
+from typing import Any, Dict, List, Optional
 
 from llama_stack.apis.eval import BenchmarkConfig, EvalCandidate
-from .errors import LMEvalConfigError
 from llama_stack.schema_utils import json_schema_type
+from pydantic import Field
+
+from .errors import LMEvalConfigError
+
+
+@json_schema_type
+@dataclass
+class TLSConfig:
+    """TLS configuration for the LMEval provider."""
+
+    enable: bool
+    cert_file: Optional[str] = None
+    cert_secret: Optional[str] = None
+
+    def __post_init__(self):
+        """Validate the configuration"""
+        if self.enable and (self.cert_file is not None or self.cert_secret is not None):
+            # If both cert_file and cert_secret are provided, both must be set
+            if not (self.cert_file is not None and self.cert_secret is not None):
+                raise LMEvalConfigError(
+                    "Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified"
+                )
 
 
 @json_schema_type
@@ -30,13 +51,9 @@ class LMEvalBenchmarkConfig(BenchmarkConfig):
     # mode: str = Field(description="Mode of the benchmark", default="production")
     env_vars: Optional[List[Dict[str, str]]] = None
     metadata: Optional[Dict[str, Any]] = None
-    # Optional TLS certificate path (or False, to disable TLS verification)
-    tls: Optional[Union[str, bool]] = None
 
     def __post_init__(self):
         """Validate the configuration"""
-        super().__post_init__()
-
         if not self.model:
             raise ValueError("model must be provided")
 
@@ -77,8 +94,8 @@ class LMEvalEvalProviderConfig:
     # Default tokenizer to use when none is specified in the ModelCandidate
     default_tokenizer: str = "google/flan-t5-base"
     metadata: Optional[Dict[str, Any]] = None
-    # Optional TLS certificate path (or False, to disable TLS verification)
-    tls: Optional[Union[str, bool]] = None
+    # TLS configuration - structured approach
+    tls: Optional[TLSConfig] = None
 
     def __post_init__(self):
         """Validate the configuration"""
@@ -88,13 +105,11 @@ class LMEvalEvalProviderConfig:
             raise LMEvalConfigError(
                 "Only Kubernetes LMEval backend is supported at the moment"
             )
-        # Validate TLS setting
-        if self.tls is not None and not (
-            isinstance(self.tls, str) or self.tls is False
-        ):
-            raise LMEvalConfigError(
-                "tls must be either a string path to a certificate or False"
-            )
 
 
-__all__ = ["LMEvalBenchmarkConfig", "K8sLMEvalConfig", "LMEvalEvalProviderConfig"]
+__all__ = [
+    "TLSConfig",
+    "LMEvalBenchmarkConfig",
+    "K8sLMEvalConfig",
+    "LMEvalEvalProviderConfig",
+]

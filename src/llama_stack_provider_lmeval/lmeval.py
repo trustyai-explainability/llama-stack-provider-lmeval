@@ -1,10 +1,14 @@
+"""LMEval provider implementation for Llama Stack."""
+
 from __future__ import annotations
 
 import json
 import logging
 import os
+import uuid
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 from kubernetes import client as k8s_client
@@ -23,6 +27,138 @@ from .errors import LMEvalConfigError, LMEvalTaskNameError
 logger = logging.getLogger(__name__)
 
 
+def _get_tls_config_from_env(provider_config=None) -> Optional[Union[str, bool]]:
+    """Get TLS configuration from environment variables with provider config fallback.
+
+    Args:
+        provider_config: Optional provider configuration object for fallback
+
+    Returns:
+        TLS configuration: True for verify=True, string path for certificate file, or None if not configured
+    """
+    tls_enabled = os.environ.get("TRUSTYAI_LMEVAL_TLS", "").lower() == "true"
+    if not tls_enabled:
+        # Fallback to provider config if environment variables not set
+        if (
+            provider_config
+            and hasattr(provider_config, "tls")
+            and provider_config.tls is not None
+        ):
+            if provider_config.tls.enable:
+                if (
+                    provider_config.tls.cert_file is not None
+                    and provider_config.tls.cert_secret is not None
+                ):
+                    # Both are set, return the full path where the certificate will be mounted
+                    mount_path = "/etc/ssl/certs"
+                    full_cert_path = f"{mount_path}/{provider_config.tls.cert_file}"
+                    logger.debug(
+                        "Using TLS configuration from provider config: %s", full_cert_path
+                    )
+                    return full_cert_path
+                else:
+                    # TLS enabled but no certificates specified
+                    logger.debug("Using TLS configuration from provider config: True")
+                    return True
+        return None
+
+    cert_file = os.environ.get("TRUSTYAI_LMEVAL_CERT_FILE")
+    cert_secret = os.environ.get("TRUSTYAI_LMEVAL_CERT_SECRET")
+
+    if cert_file and cert_secret:
+        # Both are set, return the full path where the certificate will be mounted
+        mount_path = "/etc/ssl/certs"
+        full_cert_path = f"{mount_path}/{cert_file}"
+        return full_cert_path
+    elif cert_file or cert_secret:
+        # Only one is set, this is invalid configuration
+        logger.warning(
+            "Both TRUSTYAI_LMEVAL_CERT_FILE and TRUSTYAI_LMEVAL_CERT_SECRET must be set "
+            "when TRUSTYAI_LMEVAL_TLS is True. TLS verification will be disabled."
+        )
+        # Fallback to provider config if available
+        if (
+            provider_config
+            and hasattr(provider_config, "tls")
+            and provider_config.tls is not None
+        ):
+            if provider_config.tls.enable:
+                if (
+                    provider_config.tls.cert_file is not None
+                    and provider_config.tls.cert_secret is not None
+                ):
+                    mount_path = "/etc/ssl/certs"
+                    full_cert_path = f"{mount_path}/{provider_config.tls.cert_file}"
+                    logger.debug(
+                        "Falling back to provider config TLS: %s", full_cert_path
+                    )
+                    return full_cert_path
+                else:
+                    logger.debug("Falling back to provider config TLS: True")
+                    return True
+        return None
+    else:
+        # Neither is set, return True for verify=True
+        return True
+
+
+def _create_tls_volume_config(
+    provider_config=None,
+) -> Tuple[Optional[List[Dict[str, Any]]], Optional[List[Dict[str, Any]]]]:
+    """Create volume mount and volume configuration for TLS certificates.
+
+    Args:
+        provider_config: Optional provider configuration object for fallback
+
+    Returns:
+        Tuple of (volume_mounts, volumes) or (None, None) if TLS is not configured
+    """
+    tls_enabled = os.environ.get("TRUSTYAI_LMEVAL_TLS", "").lower() == "true"
+    cert_file = os.environ.get("TRUSTYAI_LMEVAL_CERT_FILE")
+    cert_secret = os.environ.get("TRUSTYAI_LMEVAL_CERT_SECRET")
+
+    # If environment variables not set, check provider config
+    if (
+        not tls_enabled
+        and provider_config
+        and hasattr(provider_config, "tls")
+        and provider_config.tls is not None
+    ):
+        if provider_config.tls.enable:
+            tls_enabled = True
+            cert_file = provider_config.tls.cert_file
+            cert_secret = provider_config.tls.cert_secret
+
+    if not tls_enabled:
+        return None, None
+
+    if not (cert_file is not None and cert_secret is not None):
+        # No certificate file or secret specified, no volumes needed
+        return None, None
+
+    # Mount path is predefined as /etc/ssl/certs/
+    mount_path = "/etc/ssl/certs"
+
+    # Create volume mount
+    volume_mounts = [{"name": "tls-cert", "mountPath": mount_path, "readOnly": True}]
+
+    # Create volume
+    volumes = [
+        {
+            "name": "tls-cert",
+            "secret": {
+                "secretName": cert_secret,
+                "items": [{"key": cert_file, "path": cert_file}],
+            },
+        }
+    ]
+
+    logger.info(
+        "Created TLS volume config: mount=%s, secret=%s, cert_file=%s", mount_path, cert_secret, cert_file
+    )
+    return volume_mounts, volumes
+
+
 class ModelArg(BaseModel):
     """Model argument for the LMEval CR."""
 
@@ -34,6 +170,7 @@ class ContainerConfig(BaseModel):
     """Container configuration for the LMEval CR."""
 
     env: Optional[List[Dict[str, Any]]] = None
+    volumeMounts: Optional[List[Dict[str, Any]]] = None
 
 
 class PodConfig(BaseModel):
@@ -41,6 +178,7 @@ class PodConfig(BaseModel):
 
     container: ContainerConfig
     serviceAccountName: Optional[str] = None
+    volumes: Optional[List[Dict[str, Any]]] = None
 
 
 class GitSource(BaseModel):
@@ -169,7 +307,7 @@ class LMEvalCRBuilder:
         """
         # Strip trailing slashes
         cleaned_url = base_url.rstrip("/")
-        
+
         # Check if URL already ends with v1
         if cleaned_url.endswith("/v1"):
             return f"{cleaned_url}/completions"
@@ -177,32 +315,29 @@ class LMEvalCRBuilder:
             return f"{cleaned_url}/v1/completions"
 
     def _create_model_args(
-        self, model_name: str, base_url: Optional[str] = None
+        self, base_url: str, benchmark_config: BenchmarkConfig
     ) -> List[ModelArg]:
-        """Create model arguments for the CR.
+        """Create model arguments for the LMEvalJob CR."""
+        model_args = [
+            ModelArg(
+                name="base_url", value=self._build_openai_url(base_url) if base_url is not None else ""
+            ),
+        ]
 
-        Args:
-            model_name: The model name to use
-            base_url: Optional base URL for the model service
+        # Add model name if specified in benchmark config
+        if hasattr(benchmark_config, "model") and benchmark_config.model:
+            model_args.append(ModelArg(name="model", value=benchmark_config.model))
 
-        Returns:
-            List of ModelArg objects
-        """
-        model_args = [ModelArg(name="model", value=model_name)]
+        # Add custom model args from benchmark config
+        if hasattr(benchmark_config, "model_args") and benchmark_config.model_args:
+            model_args.extend(benchmark_config.model_args)
 
-        if base_url:
-            openai_base_url = self._build_openai_url(base_url)
-            model_args.append(ModelArg(name="base_url", value=openai_base_url))
-
-        # Add TLS configuration (if present in config)
-        if hasattr(self._config, "tls") and self._config.tls is not None:
-            tls_value = str(self._config.tls)
-            logger.debug(
-                f"Adding TLS configuration to CR: verify_certificate={tls_value}"
+        # Add TLS configuration
+        env_tls_config = _get_tls_config_from_env(self._config)
+        if env_tls_config is not None:
+            model_args.append(
+                ModelArg(name="verify_certificate", value=str(env_tls_config))
             )
-            model_args.append(ModelArg(name="verify_certificate", value=tls_value))
-
-        model_args.append(ModelArg(name="num_concurrent", value="1"))
 
         return model_args
 
@@ -226,20 +361,18 @@ class LMEvalCRBuilder:
         if hasattr(task_config, "metadata") and task_config.metadata:
             metadata_env = task_config.metadata.get("env")
             if metadata_env and isinstance(metadata_env, dict):
-                logger.debug(f"Found environment variables in metadata: {metadata_env}")
+                logger.debug("Found environment variables in metadata: %s", metadata_env)
                 for key, value in metadata_env.items():
                     if isinstance(value, dict) and "secret" in value:
                         # Handle Kubernetes secret reference structure
                         env_vars.append({"name": key, "secret": value["secret"]})
                         logger.debug(
-                            f"Added secret environment variable from metadata: {key}"
+                            "Added secret environment variable from metadata: %s", key
                         )
                     else:
                         # Handle simple string value
                         env_vars.append({"name": key, "value": str(value)})
-                        logger.debug(
-                            f"Added environment variable from metadata: {key}"
-                        )
+                        logger.debug("Added environment variable from metadata: %s", key)
 
         # Get environment variables from stored benchmark metadata
         if (
@@ -251,20 +384,20 @@ class LMEvalCRBuilder:
             metadata_env = stored_benchmark.metadata.get("env")
             if metadata_env and isinstance(metadata_env, dict):
                 logger.debug(
-                    f"Found environment variables in stored benchmark metadata: {metadata_env}"
+                    "Found environment variables in stored benchmark metadata: %s", metadata_env
                 )
                 for key, value in metadata_env.items():
                     if isinstance(value, dict) and "secret" in value:
                         # Handle Kubernetes secret reference structure
                         env_vars.append({"name": key, "secret": value["secret"]})
                         logger.debug(
-                            f"Added secret environment variable from stored benchmark metadata: {key}"
+                            "Added secret environment variable from stored benchmark metadata: %s", key
                         )
                     else:
                         # Handle simple string value
                         env_vars.append({"name": key, "value": str(value)})
                         logger.debug(
-                            f"Added environment variable from stored benchmark metadata: {key}"
+                            "Added environment variable from stored benchmark metadata: %s", key
                         )
 
         return env_vars
@@ -300,40 +433,64 @@ class LMEvalCRBuilder:
             PodConfig object or None if no config needed
         """
         if not env_vars and not self._service_account:
+            # Check if we need TLS volumes even without env vars
+            volume_mounts, volumes = _create_tls_volume_config(self._config)
+            if volume_mounts and volumes:
+                container_config = ContainerConfig(volumeMounts=volume_mounts)
+                pod_config = PodConfig(
+                    container=container_config,
+                    serviceAccountName=self._service_account,
+                    volumes=volumes,
+                )
+                logger.info("Created pod config with TLS volumes")
+                return pod_config
             return None
 
         # Process environment variables to handle both simple values and secret references
         processed_env_vars = []
         for env_var in env_vars:
             env_entry = {"name": env_var["name"]}
-            
+
             # Check if this env var has a secret reference
             if "secret" in env_var and env_var["secret"]:
                 # Custom secret structure: name/value/secret
                 secret_ref = env_var["secret"]
-                if isinstance(secret_ref, dict) and "name" in secret_ref and "key" in secret_ref:
+                if (
+                    isinstance(secret_ref, dict)
+                    and "name" in secret_ref
+                    and "key" in secret_ref
+                ):
                     env_entry["valueFrom"] = {
                         "secretKeyRef": {
                             "name": secret_ref["name"],
-                            "key": secret_ref["key"]
+                            "key": secret_ref["key"],
                         }
                     }
                 else:
                     # Invalid secret structure, fall back to simple value
                     logger.warning(
-                        f"Invalid secret structure for env var '{env_var.get('name', '<unknown>')}'. "
-                        "Expected a dict with 'name' and 'key'. Falling back to simple value."
+                        "Invalid secret structure for env var '%s'. "
+                        "Expected a dict with 'name' and 'key'. Falling back to simple value.",
+                        env_var.get('name', '<unknown>')
                     )
                     env_entry["value"] = str(env_var.get("value", ""))
             else:
                 # Handle value field (simple or complex structures)
                 value = env_var.get("value")
-                if isinstance(value, str) and value.startswith("{") and value.endswith("}"):
+                if (
+                    isinstance(value, str)
+                    and value.startswith("{")
+                    and value.endswith("}")
+                ):
                     # A stringified dict, parse it
                     try:
                         import ast
+
                         parsed_value = ast.literal_eval(value)
-                        if isinstance(parsed_value, dict) and "valueFrom" in parsed_value:
+                        if (
+                            isinstance(parsed_value, dict)
+                            and "valueFrom" in parsed_value
+                        ):
                             # Use the parsed valueFrom structure
                             env_entry.update(parsed_value)
                         else:
@@ -348,22 +505,32 @@ class LMEvalCRBuilder:
                 else:
                     # Simple string value
                     env_entry["value"] = str(value) if value is not None else ""
-            
+
             processed_env_vars.append(env_entry)
 
+        # Get TLS volume configuration
+        volume_mounts, volumes = _create_tls_volume_config(self._config)
+
         # Add environment variables to the container config
-        container_config = ContainerConfig(env=processed_env_vars or None)
+        container_config = ContainerConfig(
+            env=processed_env_vars or None, volumeMounts=volume_mounts
+        )
 
         # Add service account to the pod config
         pod_config = PodConfig(
-            container=container_config, serviceAccountName=self._service_account
+            container=container_config,
+            serviceAccountName=self._service_account,
+            volumes=volumes,
         )
 
         if env_vars:
             env_var_names = [env_var["name"] for env_var in processed_env_vars]
             logger.debug(
-                f"Setting pod environment variables: {', '.join(env_var_names)}"
+                "Setting pod environment variables: %s", ', '.join(env_var_names)
             )
+
+        if volume_mounts and volumes:
+            logger.info("Added TLS volume configuration to pod")
 
         return pod_config
 
@@ -390,7 +557,7 @@ class LMEvalCRBuilder:
 
             if git_data and "url" in git_data:
                 logger.debug(
-                    f"Found git URL in task_config metadata: {git_data.get('url')}"
+                    "Found git URL in task_config metadata: %s", git_data.get('url')
                 )
                 return {
                     "url": git_data.get("url"),
@@ -409,7 +576,7 @@ class LMEvalCRBuilder:
             git_data = custom_task_data.get("git", {})
             if git_data and "url" in git_data:
                 logger.debug(
-                    f"Found git URL in stored_benchmark metadata: {git_data.get('url')}"
+                    "Found git URL in stored_benchmark metadata: %s", git_data.get('url')
                 )
                 return {
                     "url": git_data.get("url"),
@@ -440,7 +607,7 @@ class LMEvalCRBuilder:
                     pvc_name = storage_data.get("pvc")
                     if pvc_name and isinstance(pvc_name, str):
                         logger.debug(
-                            f"Found PVC name in task_config metadata: {pvc_name}"
+                            "Found PVC name in task_config metadata: %s", pvc_name
                         )
                         return pvc_name
 
@@ -456,7 +623,7 @@ class LMEvalCRBuilder:
                     pvc_name = storage_data.get("pvc")
                     if pvc_name and isinstance(pvc_name, str):
                         logger.debug(
-                            f"Found PVC name in stored_benchmark metadata: {pvc_name}"
+                            "Found PVC name in stored_benchmark metadata: %s", pvc_name
                         )
                         return pvc_name
 
@@ -485,13 +652,38 @@ class LMEvalCRBuilder:
         Raises:
             LMEvalConfigError: If the configuration is invalid
         """
+        logger.info("CREATE_CR: Starting CR creation for benchmark %s", benchmark_id)
+        logger.info("CREATE_CR: Task config type: %s", type(task_config))
+        logger.info(
+            "CREATE_CR: Task config has metadata: %s", hasattr(task_config, 'metadata')
+        )
+        if hasattr(task_config, "metadata"):
+            logger.info(
+                "CREATE_CR: Task config metadata content: %s", task_config.metadata
+            )
         # Validate model candidate
         eval_candidate = task_config.eval_candidate
         if eval_candidate.type != "model":
             raise LMEvalConfigError("LMEval only supports model candidates for now")
 
+        # Extract TLS configuration - prioritise environment variables over benchmark config
+        benchmark_tls = None
+
+        # Check for TLS configuration in benchmark config
+        if (
+            hasattr(task_config, "tls")
+            and task_config.tls is not None
+            and isinstance(task_config.tls, (str, bool))
+        ):
+            benchmark_tls = task_config.tls
+            logger.debug(
+                "Found TLS configuration in benchmark config: %s", benchmark_tls
+            )
+
+        logger.info("Final benchmark_tls value for model args: %s", benchmark_tls)
+
         # Create model args
-        model_args = self._create_model_args(eval_candidate.model, base_url)
+        model_args = self._create_model_args(base_url, task_config)
 
         if (
             hasattr(stored_benchmark, "metadata")
@@ -500,7 +692,7 @@ class LMEvalCRBuilder:
         ):
             tokenizer_value = stored_benchmark.metadata.get("tokenizer")
             if isinstance(tokenizer_value, str) and tokenizer_value:
-                logger.debug(f"Using custom tokenizer from metadata: {tokenizer_value}")
+                logger.debug("Using custom tokenizer from metadata: %s", tokenizer_value)
                 model_args.append(ModelArg(name="tokenizer", value=tokenizer_value))
 
         # Add tokenized_requests parameter if present in metadata
@@ -509,10 +701,15 @@ class LMEvalCRBuilder:
             and stored_benchmark.metadata
             and "tokenized_requests" in stored_benchmark.metadata
         ):
-            tokenized_requests_value = stored_benchmark.metadata.get("tokenized_requests")
-            if isinstance(tokenized_requests_value, (bool, str)) and tokenized_requests_value is not None:
+            tokenized_requests_value = stored_benchmark.metadata.get(
+                "tokenized_requests"
+            )
+            if (
+                isinstance(tokenized_requests_value, (bool, str))
+                and tokenized_requests_value is not None
+            ):
                 value_str = str(tokenized_requests_value)
-                logger.debug(f"Using tokenized_requests from metadata: {value_str}")
+                logger.debug("Using tokenized_requests from metadata: %s", value_str)
                 model_args.append(ModelArg(name="tokenized_requests", value=value_str))
 
         # Collect environment variables
@@ -525,7 +722,6 @@ class LMEvalCRBuilder:
         pod_config = self._create_pod_config(env_vars)
 
         # Generate UUID-based id
-        import uuid
 
         job_id = str(uuid.uuid4())
 
@@ -559,17 +755,17 @@ class LMEvalCRBuilder:
         cr_dict = cr.model_dump()
 
         if pvc_name:
-            logger.info(f"Setting up offline storage with PVC: {pvc_name}")
+            logger.info("Setting up offline storage with PVC: %s", pvc_name)
             if "offline" in cr_dict["spec"] and cr_dict["spec"]["offline"] is None:
                 logger.warning("Removing null offline field from CR spec")
                 del cr_dict["spec"]["offline"]
 
             cr_dict["spec"]["offline"] = {"storage": {"pvcName": pvc_name}}
-            logger.debug(f"Added offline storage to CR with PVC: {pvc_name}")
+            logger.debug("Added offline storage to CR with PVC: %s", pvc_name)
 
         # Add custom tasks to CR if git source data is available
         if git_source_data:
-            logger.info(f"Adding customTasks to CR with git data: {git_source_data}")
+            logger.info("Adding customTasks to CR with git data: %s", git_source_data)
 
             custom_tasks_section = {"source": {"git": {}}}
 
@@ -580,12 +776,12 @@ class LMEvalCRBuilder:
             cr_dict["spec"]["taskList"]["customTasks"] = custom_tasks_section
 
             logger.debug(
-                f"Added customTasks to CR: {json.dumps(custom_tasks_section, indent=2)}"
+                "Added customTasks to CR: %s", json.dumps(custom_tasks_section, indent=2)
             )
         else:
             logger.warning("No git source data found for customTasks")
 
-        logger.debug(f"Final LMEval Custom Resource: {json.dumps(cr_dict, indent=2)}")
+        logger.debug("Final LMEval Custom Resource: %s", json.dumps(cr_dict, indent=2))
 
         return cr_dict
 
@@ -605,37 +801,43 @@ def _resolve_namespace(config: LMEvalEvalProviderConfig) -> str:
     """  # noqa: D205, E501
     # Check if namespace is explicitly set in the provider config
     if config.namespace:
-        logger.debug(f"Using namespace from provider config: {config.namespace}")
+        logger.debug("Using namespace from provider config: %s", config.namespace)
         return config.namespace.strip()
 
     # Check from environment variable
-    env_namespace = os.getenv('TRUSTYAI_LM_EVAL_NAMESPACE')  # noqa: Q000
+    env_namespace = os.getenv("TRUSTYAI_LM_EVAL_NAMESPACE")  # noqa: Q000
     if env_namespace:
-        logger.debug(f"Using namespace from environment variable: {env_namespace}")
+        logger.debug("Using namespace from environment variable: %s", env_namespace)
         return env_namespace
 
     # Check from service account namespace file
-    service_account_namespace_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    service_account_namespace_path = (
+        "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    )
     if Path(service_account_namespace_path).exists():
         try:
-            with open(service_account_namespace_path, 'r') as f:
+            with open(service_account_namespace_path, "r") as f:
                 namespace = f.read().strip()
                 if namespace:
-                    logger.debug(f"Using namespace from service account: {namespace}")
+                    logger.debug("Using namespace from service account: %s", namespace)
                     return namespace
         except OSError as e:
-            logger.warning(f"Failed to read namespace from service account: {e}")
+            logger.warning("Failed to read namespace from service account: %s", e)
 
     # Check for POD_NAMESPACE environment variable
     pod_namespace = os.getenv("POD_NAMESPACE")
     if pod_namespace:
-        logger.debug(f"Using namespace from POD_NAMESPACE environment variable: {pod_namespace}")
+        logger.debug(
+            "Using namespace from POD_NAMESPACE environment variable: %s", pod_namespace
+        )
         return pod_namespace
 
     # Check for NAMESPACE environment variable
-    alt_namespace = os.getenv('NAMESPACE')  # noqa: Q000
+    alt_namespace = os.getenv("NAMESPACE")  # noqa: Q000
     if alt_namespace:
-        logger.debug(f"Using namespace from NAMESPACE environment variable: {alt_namespace}")
+        logger.debug(
+            "Using namespace from NAMESPACE environment variable: %s", alt_namespace
+        )
         return alt_namespace
 
     # No namespace found - fail explicitly
@@ -649,15 +851,15 @@ def _resolve_namespace(config: LMEvalEvalProviderConfig) -> str:
 
 
 class LMEval(Eval, BenchmarksProtocolPrivate):
+    """LMEval provider implementation for Kubernetes-based evaluations."""
+
     def __init__(self, config: LMEvalEvalProviderConfig):
         self._config = config
-        
+
         self._namespace = _resolve_namespace(self._config)
-        
-        logger.debug(
-            f"LMEval provider initialized with namespace: {self._namespace}"
-        )
-        logger.debug(f"LMEval provider config values: {vars(self._config)}")
+
+        logger.debug("LMEval provider initialized with namespace: %s", self._namespace)
+        logger.debug("LMEval provider config values: %s", vars(self._config))
         self.benchmarks = {}
         self._jobs: List[Job] = []
         self._job_metadata = {}
@@ -666,7 +868,9 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         self._k8s_custom_api = None
         if self.use_k8s:
             self._init_k8s_client()
-            logger.debug(f"Initialized Kubernetes client with namespace: {self._namespace}")
+            logger.debug(
+                "Initialized Kubernetes client with namespace: %s", self._namespace
+            )
             self._cr_builder = LMEvalCRBuilder(
                 namespace=self._namespace,
                 service_account=getattr(self._config, "service_account", None),
@@ -684,7 +888,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 k8s_config.load_kube_config()
                 logger.debug("Loaded Kubernetes config from kubeconfig file")
             except k8s_config.ConfigException as e:
-                logger.error(f"Failed to load Kubernetes config: {e}")
+                logger.error("Failed to load Kubernetes config: %s", e)
                 raise LMEvalConfigError(
                     f"Failed to initialize Kubernetes client: {e}"
                 ) from e
@@ -720,11 +924,11 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         benchmark = self.benchmarks.get(benchmark_id)
         if benchmark:
             logger.debug(
-                f"Retrieved benchmark {benchmark_id} with metadata: {benchmark.metadata}"
+                "Retrieved benchmark %s with metadata: %s", benchmark_id, benchmark.metadata
             )
             if "custom_task" in benchmark.metadata:
                 logger.debug(
-                    f"Benchmark {benchmark_id} has custom_task: {benchmark.metadata.get('custom_task')}"
+                    "Benchmark %s has custom_task: %s", benchmark_id, benchmark.metadata.get('custom_task')
                 )
         return benchmark
 
@@ -734,13 +938,13 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         Args:
             benchmark: The benchmark to register
         """
-        logger.info(f"Registering benchmark: {benchmark.identifier}")
+        logger.debug("Registering benchmark: %s", benchmark.identifier)
         # FIXME: Remove debug logging
         if hasattr(benchmark, "metadata") and benchmark.metadata:
-            logger.debug(f"Registering benchmark with metadata: {benchmark.metadata}")
+            logger.debug("Registering benchmark with metadata: %s", benchmark.metadata)
             if "custom_task" in benchmark.metadata:
                 logger.debug(
-                    f"Benchmark has custom_task: {benchmark.metadata.get('custom_task')}"
+                    "Benchmark has custom_task: %s", benchmark.metadata.get('custom_task')
                 )
         self.benchmarks[benchmark.identifier] = benchmark
 
@@ -750,7 +954,6 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         Returns:
             Unique job ID string
         """
-        import uuid
 
         return f"lmeval-job-{str(uuid.uuid4())}"
 
@@ -793,7 +996,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
                 cr["spec"]["offline"] = {"storage": {"pvcName": pvc_name}}
                 logger.debug(
-                    f"Ensured offline storage in CR before deployment: {pvc_name}"
+                    "Ensured offline storage in CR before deployment: %s", pvc_name
                 )
 
         cr_yaml = yaml.dump(cr, default_flow_style=False)
@@ -809,17 +1012,17 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
             if pvc_name:
                 cr_dict["spec"]["offline"] = {"storage": {"pvcName": pvc_name}}
-                logger.debug(f"Re-added offline storage in YAML: {pvc_name}")
+                logger.debug("Re-added offline storage in YAML: %s", pvc_name)
 
             cr_yaml = yaml.dump(cr_dict, default_flow_style=False)
             cr = cr_dict
         except Exception as e:
-            logger.error(f"Error fixing YAML: {e}")
+            logger.error("Error fixing YAML: %s", e)
 
-        logger.debug(
-            f"Deploying LMEvalJob Custom Resource to Kubernetes namespace: {self._namespace}"
+        logger.info(
+            "Deploying LMEvalJob Custom Resource to Kubernetes namespace: %s", self._namespace
         )
-        logger.debug(f"Full Custom Resource being submitted: \n{cr_yaml}")
+        logger.info("Full Custom Resource being submitted: \n%s", cr_yaml)
 
         try:
             response = self._k8s_custom_api.create_namespaced_custom_object(
@@ -839,13 +1042,13 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 raise LMEvalConfigError("Invalid response from Kubernetes API")
 
             logger.debug(
-                f"Successfully deployed LMEval CR to Kubernetes: {response['metadata']['name']}"
+                "Successfully deployed LMEval CR to Kubernetes: %s", response['metadata']['name']
             )
 
             self._job_metadata[job_id]["k8s_name"] = cr["metadata"]["name"]
 
         except ApiException as e:
-            logger.error(f"Failed to deploy LMEval CR to Kubernetes: {e}")
+            logger.error("Failed to deploy LMEval CR to Kubernetes: %s", e)
             raise LMEvalConfigError(f"Failed to deploy LMEval CR: {e}") from e
 
     def _process_benchmark_config(
@@ -866,7 +1069,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             return None
 
         config_limit = str(benchmark_config.num_examples)
-        logger.debug(f"Using example limit from config: {config_limit}")
+        logger.debug("Using example limit from config: %s", config_limit)
         return config_limit
 
     def _process_environment_vars(self, benchmark_config: BenchmarkConfig) -> None:
@@ -922,21 +1125,21 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             raise LMEvalConfigError("K8s mode requires BenchmarkConfig")
 
         stored_benchmark = await self.get_benchmark(benchmark_id)
-        logger.info(f"Running evaluation for benchmark {benchmark_id}")
+        logger.info("Running evaluation for benchmark %s", benchmark_id)
 
         config_limit = self._process_benchmark_config(benchmark_config)
         self._process_environment_vars(benchmark_config)
 
         if hasattr(benchmark_config, "metadata") and benchmark_config.metadata:
             logger.debug(
-                f"Benchmark config metadata: {json.dumps(benchmark_config.metadata, indent=2)}"
+                "Benchmark config metadata: %s", json.dumps(benchmark_config.metadata, indent=2)
             )
             if (
                 "input" in benchmark_config.metadata
                 and "storage" in benchmark_config.metadata.get("input", {})
             ):
                 logger.debug(
-                    f"Found storage config in metadata: {benchmark_config.metadata['input']['storage']}"
+                    "Found storage config in metadata: %s", benchmark_config.metadata['input']['storage']
                 )
 
         cr = self._cr_builder.create_cr(
@@ -948,7 +1151,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         )
 
         logger.debug(
-            f"Generated LMEvalJob Custom Resource for benchmark {benchmark_id}"
+            "Generated LMEvalJob Custom Resource for benchmark %s", benchmark_id
         )
 
         if (
@@ -971,10 +1174,9 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                     del cr["spec"]["offline"]
 
                 cr["spec"]["offline"] = {"storage": {"pvcName": pvc_name}}
-                logger.debug(f"Ensured offline storage in CR with PVC: {pvc_name}")
+                logger.debug("Ensured offline storage in CR with PVC: %s", pvc_name)
 
         job_id = self._get_job_id()
-        from datetime import datetime
 
         job = Job(
             job_id=job_id,
@@ -1014,8 +1216,6 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         if not self.use_k8s:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
 
-        from llama_stack.apis.scoring import ScoringResult
-
         # FIXME: Placeholder
         generations = []
         for row in input_rows:
@@ -1048,14 +1248,14 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         job = next((j for j in self._jobs if j.job_id == job_id), None)
         if not job:
-            logger.warning(f"Job {job_id} not found")
+            logger.warning("Job %s not found", job_id)
             return None
 
         try:
             job_metadata = self._job_metadata.get(job_id, {})
             k8s_name = job_metadata.get("k8s_name")
             if not k8s_name:
-                logger.warning(f"No K8s resource name found for job {job_id}")
+                logger.warning("No K8s resource name found for job %s", job_id)
                 return {"job_id": job_id, "status": JobStatus.scheduled}
 
             group = "trustyai.opendatahub.io"
@@ -1076,7 +1276,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             message = status.get("message", "")
 
             logger.debug(
-                f"Job {job_id} status: state={state}, reason={reason}, message={message}"
+                "Job %s status: state=%s, reason=%s, message=%s", job_id, state, reason, message
             )
 
             job_status = JobStatus.scheduled
@@ -1097,7 +1297,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             return {"job_id": job_id, "status": job_status}
 
         except ApiException as e:
-            logger.error(f"Failed to get job status from Kubernetes: {e}")
+            logger.error("Failed to get job status from Kubernetes: %s", e)
             return {"job_id": job_id, "status": JobStatus.scheduled}
 
     async def job_cancel(self, benchmark_id: str, job_id: str) -> None:
@@ -1112,14 +1312,14 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         job = next((j for j in self._jobs if j.job_id == job_id), None)
         if not job:
-            logger.warning(f"Job {job_id} not found")
+            logger.warning("Job %s not found", job_id)
             return
 
         try:
             job_metadata = self._job_metadata.get(job_id, {})
             k8s_name = job_metadata.get("k8s_name")
             if not k8s_name:
-                logger.warning(f"No K8s resource name found for job {job_id}")
+                logger.warning("No K8s resource name found for job %s", job_id)
                 return
 
             # Delete the LMEvalJob
@@ -1138,11 +1338,11 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             # Update job status
             job.status = JobStatus.cancelled
             logger.info(
-                f"Successfully cancelled job {job_id} (Kubernetes resource: {k8s_name})"
+                "Successfully cancelled job %s (Kubernetes resource: %s)", job_id, k8s_name
             )
 
         except ApiException as e:
-            logger.error(f"Failed to cancel job in Kubernetes: {e}")
+            logger.error("Failed to cancel job in Kubernetes: %s", e)
             raise LMEvalConfigError(f"Failed to cancel job: {e}") from e
 
     def _get_job_and_k8s_name(self, job_id: str) -> Tuple[Optional[Job], Optional[str]]:
@@ -1156,13 +1356,13 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         """
         job = next((j for j in self._jobs if j.job_id == job_id), None)
         if not job:
-            logger.warning(f"Job {job_id} not found")
+            logger.warning("Job %s not found", job_id)
             return None, None
 
         job_metadata = self._job_metadata.get(job_id, {})
         k8s_name = job_metadata.get("k8s_name")
         if not k8s_name:
-            logger.warning(f"No K8s resource name found for job {job_id}")
+            logger.warning("No K8s resource name found for job %s", job_id)
             return job, None
 
         return job, k8s_name
@@ -1189,7 +1389,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 name=k8s_name,
             )
         except ApiException as e:
-            logger.error(f"Failed to get custom resource: {e}")
+            logger.error("Failed to get custom resource: %s", e)
             return None
 
     def _parse_evaluation_results(
@@ -1207,10 +1407,8 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             results = json.loads(results_str)
             logger.debug("Successfully parsed results JSON")
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse results JSON: {e}")
+            logger.error("Failed to parse results JSON: %s", e)
             raise ValueError(f"Invalid JSON in results field: {e}") from e
-
-        from llama_stack.apis.scoring import ScoringResult
 
         # Extract scores
         scores = {}
@@ -1303,7 +1501,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         # Check if job is complete
         if state != "Complete":
-            logger.warning(f"Job {job_id} is not complete yet (state: {state})")
+            logger.warning("Job %s is not complete yet (state: %s)", job_id, state)
             return EvaluateResponse(
                 generations=[],
                 scores={},
@@ -1313,7 +1511,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         # Get results JSON
         results_str = status.get("results", "")
         if not results_str:
-            logger.warning(f"No results found in job {job_id}")
+            logger.warning("No results found in job %s", job_id)
             return EvaluateResponse(
                 generations=[],
                 scores={},
@@ -1346,7 +1544,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             )
 
         except Exception as e:
-            logger.error(f"Error retrieving job results: {e}")
+            logger.error("Error retrieving job results: %s", e)
             return EvaluateResponse(
                 generations=[], scores={}, metadata={"error": str(e)}
             )
