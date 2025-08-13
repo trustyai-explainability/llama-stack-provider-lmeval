@@ -5,7 +5,386 @@ from unittest.mock import patch, MagicMock
 import os
 
 from src.llama_stack_provider_lmeval.config import LMEvalEvalProviderConfig, TLSConfig
-from src.llama_stack_provider_lmeval.lmeval import LMEvalCRBuilder
+from src.llama_stack_provider_lmeval.lmeval import LMEvalCRBuilder, _get_tls_config_from_env
+
+
+class TestTLSConfigFromEnv(unittest.TestCase):
+    """Test the _get_tls_config_from_env function."""
+
+    def setUp(self):
+        """Test fixtures."""
+        # Clear any existing environment variables
+        self.env_vars_to_clear = [
+            "TRUSTYAI_LMEVAL_TLS",
+            "TRUSTYAI_LMEVAL_CERT_FILE", 
+            "TRUSTYAI_LMEVAL_CERT_SECRET"
+        ]
+        self.original_env = {}
+        for var in self.env_vars_to_clear:
+            if var in os.environ:
+                self.original_env[var] = os.environ[var]
+                del os.environ[var]
+
+    def tearDown(self):
+        """Restore original environment variables."""
+        for var in self.env_vars_to_clear:
+            if var in self.original_env:
+                os.environ[var] = self.original_env[var]
+            elif var in os.environ:
+                del os.environ[var]
+
+    def test_no_tls_environment_variables(self):
+        """Test when no TLS environment variables are set."""
+        result = _get_tls_config_from_env()
+        self.assertIsNone(result)
+
+    def test_tls_disabled_via_environment(self):
+        """Test when TRUSTYAI_LMEVAL_TLS is explicitly set to false."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "false"
+        result = _get_tls_config_from_env()
+        self.assertIsNone(result)
+
+    def test_tls_enabled_with_both_cert_variables(self):
+        """Test when TLS is enabled and both certificate variables are set."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        result = _get_tls_config_from_env()
+        expected_path = "/etc/ssl/certs/test-cert.pem"
+        self.assertEqual(result, expected_path)
+
+    def test_tls_enabled_with_only_cert_file(self):
+        """Test when TLS is enabled but only TRUSTYAI_LMEVAL_CERT_FILE is set."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        result = _get_tls_config_from_env()
+        self.assertIsNone(result)
+
+    def test_tls_enabled_with_only_cert_secret(self):
+        """Test when TLS is enabled but only TRUSTYAI_LMEVAL_CERT_SECRET is set."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        # TRUSTYAI_LMEVAL_CERT_FILE is not set
+        
+        result = _get_tls_config_from_env()
+        self.assertIsNone(result)
+
+    def test_tls_enabled_with_no_cert_variables(self):
+        """Test when TLS is enabled but no certificate variables are set."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        # Neither TRUSTYAI_LMEVAL_CERT_FILE nor TRUSTYAI_LMEVAL_CERT_SECRET are set
+        
+        result = _get_tls_config_from_env()
+        self.assertTrue(result)
+
+    def test_fallback_to_provider_config_when_cert_file_missing(self):
+        """Test fallback to provider config when only cert_file is missing."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        # TRUSTYAI_LMEVAL_CERT_FILE is not set
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = True
+        provider_config.tls.cert_file = "provider-cert.pem"
+        provider_config.tls.cert_secret = "provider-secret"
+        
+        result = _get_tls_config_from_env(provider_config)
+        expected_path = "/etc/ssl/certs/provider-cert.pem"
+        self.assertEqual(result, expected_path)
+
+    def test_fallback_to_provider_config_when_cert_secret_missing(self):
+        """Test fallback to provider config when only cert_secret is missing."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = True
+        provider_config.tls.cert_file = "provider-cert.pem"
+        provider_config.tls.cert_secret = "provider-secret"
+        
+        result = _get_tls_config_from_env(provider_config)
+        expected_path = "/etc/ssl/certs/provider-cert.pem"
+        self.assertEqual(result, expected_path)
+
+    def test_fallback_to_provider_config_tls_true_when_cert_file_missing(self):
+        """Test fallback to provider config TLS=True when cert_file is missing."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        # TRUSTYAI_LMEVAL_CERT_FILE is not set
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = True
+        provider_config.tls.cert_file = None
+        provider_config.tls.cert_secret = None
+        
+        result = _get_tls_config_from_env(provider_config)
+        self.assertTrue(result)
+
+    def test_fallback_to_provider_config_tls_true_when_cert_secret_missing(self):
+        """Test fallback to provider config TLS=True when cert_secret is missing."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = True
+        provider_config.tls.cert_file = None
+        provider_config.tls.cert_secret = None
+        
+        result = _get_tls_config_from_env(provider_config)
+        self.assertTrue(result)
+
+    def test_no_fallback_when_provider_config_tls_disabled(self):
+        """Test no fallback when provider config TLS is disabled."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = False
+        
+        result = _get_tls_config_from_env(provider_config)
+        self.assertIsNone(result)
+
+    def test_no_fallback_when_provider_config_tls_none(self):
+        """Test no fallback when provider config TLS is None."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        provider_config = MagicMock()
+        provider_config.tls = None
+        
+        result = _get_tls_config_from_env(provider_config)
+        self.assertIsNone(result)
+
+    def test_no_fallback_when_provider_config_has_no_tls_attr(self):
+        """Test no fallback when provider config has no tls attribute."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        # Use a regular object instead of MagicMock to avoid automatic attribute creation
+        class MockProviderConfig:
+            pass
+        
+        provider_config = MockProviderConfig()
+        
+        result = _get_tls_config_from_env(provider_config)
+        self.assertIsNone(result)
+
+    def test_provider_config_fallback_when_env_tls_disabled(self):
+        """Test provider config fallback when environment TLS is disabled."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "false"
+        # Environment TLS is disabled
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = True
+        provider_config.tls.cert_file = "provider-cert.pem"
+        provider_config.tls.cert_secret = "provider-secret"
+        
+        result = _get_tls_config_from_env(provider_config)
+        expected_path = "/etc/ssl/certs/provider-cert.pem"
+        self.assertEqual(result, expected_path)
+
+    def test_provider_config_fallback_when_env_tls_disabled_no_certs(self):
+        """Test provider config fallback when environment TLS is disabled and no certs in provider config."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "false"
+        # Environment TLS is disabled
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = True
+        provider_config.tls.cert_file = None
+        provider_config.tls.cert_secret = None
+        
+        result = _get_tls_config_from_env(provider_config)
+        self.assertTrue(result)
+
+    def test_provider_config_fallback_when_env_tls_disabled_incomplete_certs(self):
+        """Test provider config fallback when environment TLS is disabled and incomplete certs in provider config."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "false"
+        # Environment TLS is disabled
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = True
+        provider_config.tls.cert_file = "provider-cert.pem"
+        provider_config.tls.cert_secret = None  # Incomplete
+        
+        result = _get_tls_config_from_env(provider_config)
+        self.assertTrue(result)
+
+    def test_case_insensitive_tls_enabled(self):
+        """Test that TLS enabled is case insensitive."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "TRUE"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        result = _get_tls_config_from_env()
+        expected_path = "/etc/ssl/certs/test-cert.pem"
+        self.assertEqual(result, expected_path)
+
+    def test_case_insensitive_tls_disabled(self):
+        """Test that TLS disabled is case insensitive."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "FALSE"
+        
+        result = _get_tls_config_from_env()
+        self.assertIsNone(result)
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_logging_when_only_cert_file_set(self, mock_logger):
+        """Test that appropriate error logging occurs when only cert_file is set."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        result = _get_tls_config_from_env()
+        
+        # Verify error was logged for incomplete environment variables
+        mock_logger.error.assert_called()
+        error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
+        self.assertTrue(any("Invalid TLS configuration:" in call for call in error_calls))
+        self.assertTrue(any("is set but" in call for call in error_calls))
+        self.assertTrue(any("is missing" in call for call in error_calls))
+        
+        # Verify result is None (no fallback)
+        self.assertIsNone(result)
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_logging_when_only_cert_secret_set(self, mock_logger):
+        """Test that appropriate error logging occurs when only cert_secret is set."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        # TRUSTYAI_LMEVAL_CERT_FILE is not set
+        
+        result = _get_tls_config_from_env()
+        
+        # Verify error was logged for incomplete environment variables
+        mock_logger.error.assert_called()
+        error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
+        self.assertTrue(any("Invalid TLS configuration:" in call for call in error_calls))
+        self.assertTrue(any("is set but" in call for call in error_calls))
+        self.assertTrue(any("is missing" in call for call in error_calls))
+        
+        # Verify result is None (no fallback)
+        self.assertIsNone(result)
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_logging_when_fallback_to_provider_config_successful(self, mock_logger):
+        """Test that warning logging occurs when falling back to provider config."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = True
+        provider_config.tls.cert_file = "provider-cert.pem"
+        provider_config.tls.cert_secret = "provider-secret"
+        
+        result = _get_tls_config_from_env(provider_config)
+        
+        # Verify error was logged for incomplete environment variables
+        mock_logger.error.assert_called_once()
+        # Verify warning was logged for successful fallback
+        mock_logger.warning.assert_called_once()
+        warning_call_args = mock_logger.warning.call_args[0]
+        self.assertIn("Falling back to provider config TLS due to incomplete environment variables", warning_call_args[0])
+        
+        # Verify result is the provider config path
+        expected_path = "/etc/ssl/certs/provider-cert.pem"
+        self.assertEqual(result, expected_path)
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_logging_when_fallback_to_provider_config_tls_true(self, mock_logger):
+        """Test that warning logging occurs when falling back to provider config TLS=True."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        provider_config = MagicMock()
+        provider_config.tls = MagicMock()
+        provider_config.tls.enable = True
+        provider_config.tls.cert_file = None
+        provider_config.tls.cert_secret = None
+        
+        result = _get_tls_config_from_env(provider_config)
+        
+        # Verify error was logged for incomplete environment variables
+        mock_logger.error.assert_called_once()
+        # Verify warning was logged for successful fallback
+        mock_logger.warning.assert_called_once()
+        warning_call_args = mock_logger.warning.call_args[0]
+        self.assertIn("Falling back to provider config TLS (verify=True) due to incomplete environment variables", warning_call_args[0])
+        
+        # Verify result is True
+        self.assertTrue(result)
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_logging_when_fallback_not_possible(self, mock_logger):
+        """Test that error logging occurs when fallback to provider config is not possible."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        # TRUSTYAI_LMEVAL_CERT_SECRET is not set
+        
+        provider_config = MagicMock()
+        provider_config.tls = None  # No TLS config
+        
+        result = _get_tls_config_from_env(provider_config)
+        
+        # Verify error was logged for incomplete environment variables
+        mock_logger.error.assert_called()
+        # Verify additional error was logged for fallback failure
+        error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
+        self.assertTrue(any("Cannot fall back to provider config TLS" in call for call in error_calls))
+        
+        # Verify result is None
+        self.assertIsNone(result)
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_logging_when_using_environment_variables(self, mock_logger):
+        """Test that debug logging occurs when using complete environment variables."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        result = _get_tls_config_from_env()
+        
+        # Verify debug was logged
+        mock_logger.debug.assert_called_once()
+        debug_call_args = mock_logger.debug.call_args[0]
+        self.assertIn("Using TLS configuration from environment variables", debug_call_args[0])
+        
+        # Verify result is correct
+        expected_path = "/etc/ssl/certs/test-cert.pem"
+        self.assertEqual(result, expected_path)
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_logging_when_no_cert_variables_set(self, mock_logger):
+        """Test that debug logging occurs when no certificate variables are set."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        # Neither TRUSTYAI_LMEVAL_CERT_FILE nor TRUSTYAI_LMEVAL_CERT_SECRET are set
+        
+        result = _get_tls_config_from_env()
+        
+        # Verify debug was logged
+        mock_logger.debug.assert_called_once()
+        debug_call_args = mock_logger.debug.call_args[0]
+        self.assertIn("No TLS certificate files specified, using verify=True", debug_call_args[0])
+        
+        # Verify result is True
+        self.assertTrue(result)
 
 
 class TestLMEvalCRBuilder(unittest.TestCase):

@@ -69,36 +69,49 @@ def _get_tls_config_from_env(provider_config=None) -> Optional[Union[str, bool]]
         # Both are set, return the full path where the certificate will be mounted
         mount_path = "/etc/ssl/certs"
         full_cert_path = f"{mount_path}/{cert_file}"
+        logger.debug("Using TLS configuration from environment variables: %s", full_cert_path)
         return full_cert_path
     elif cert_file or cert_secret:
         # Only one is set, this is invalid configuration
-        logger.warning(
-            "Both TRUSTYAI_LMEVAL_CERT_FILE and TRUSTYAI_LMEVAL_CERT_SECRET must be set "
-            "when TRUSTYAI_LMEVAL_TLS is True. TLS verification will be disabled."
+        missing_var = "TRUSTYAI_LMEVAL_CERT_SECRET" if cert_file else "TRUSTYAI_LMEVAL_CERT_FILE"
+        logger.error(
+            "Invalid TLS configuration: %s is set but %s is missing. "
+            "Both environment variables must be set when TRUSTYAI_LMEVAL_TLS is True.",
+            "TRUSTYAI_LMEVAL_CERT_FILE" if cert_file else "TRUSTYAI_LMEVAL_CERT_SECRET",
+            missing_var
         )
-        # Fallback to provider config if available
+        
+        # Check if we can fall back to provider config
         if (
             provider_config
             and hasattr(provider_config, "tls")
             and provider_config.tls is not None
+            and provider_config.tls.enable
         ):
-            if provider_config.tls.enable:
-                if (
-                    provider_config.tls.cert_file is not None
-                    and provider_config.tls.cert_secret is not None
-                ):
-                    mount_path = "/etc/ssl/certs"
-                    full_cert_path = f"{mount_path}/{provider_config.tls.cert_file}"
-                    logger.debug(
-                        "Falling back to provider config TLS: %s", full_cert_path
-                    )
-                    return full_cert_path
-                else:
-                    logger.debug("Falling back to provider config TLS: True")
-                    return True
-        return None
+            if (
+                provider_config.tls.cert_file is not None
+                and provider_config.tls.cert_secret is not None
+            ):
+                mount_path = "/etc/ssl/certs"
+                full_cert_path = f"{mount_path}/{provider_config.tls.cert_file}"
+                logger.warning(
+                    "Falling back to provider config TLS due to incomplete environment variables: %s",
+                    full_cert_path
+                )
+                return full_cert_path
+            else:
+                logger.warning(
+                    "Falling back to provider config TLS (verify=True) due to incomplete environment variables"
+                )
+                return True
+        else:
+            logger.error(
+                "Cannot fall back to provider config TLS. TLS verification will be disabled."
+            )
+            return None
     else:
         # Neither is set, return True for verify=True
+        logger.debug("No TLS certificate files specified, using verify=True")
         return True
 
 

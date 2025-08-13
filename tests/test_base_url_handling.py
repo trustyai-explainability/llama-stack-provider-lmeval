@@ -109,7 +109,7 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should contain model name and base_url
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].name, "base_url")
-        self.assertEqual(result[0].value, "")
+        self.assertEqual(result[0].value, "/v1/completions")
         self.assertEqual(result[1].name, "model")
         self.assertEqual(result[1].value, model_name)
 
@@ -121,7 +121,7 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should contain model name and base_url
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].name, "base_url")
-        self.assertEqual(result[0].value, BASE_URL)
+        self.assertEqual(result[0].value, f"{BASE_URL}/v1/completions")
         self.assertEqual(result[1].name, "model")
         self.assertEqual(result[1].value, model_name)
 
@@ -134,7 +134,7 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should contain model name and base_url
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].name, "base_url")
-        self.assertEqual(result[0].value, base_url)
+        self.assertEqual(result[0].value, f"{base_url}/completions")
         self.assertEqual(result[1].name, "model")
         self.assertEqual(result[1].value, model_name)
 
@@ -147,7 +147,7 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should contain model name and base_url
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].name, "base_url")
-        self.assertEqual(result[0].value, base_url)
+        self.assertEqual(result[0].value, f"{base_url.rstrip('/')}/completions")
         self.assertEqual(result[1].name, "model")
         self.assertEqual(result[1].value, model_name)
 
@@ -160,7 +160,7 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should contain model name and base_url
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].name, "base_url")
-        self.assertEqual(result[0].value, base_url)
+        self.assertEqual(result[0].value, f"{base_url}/completions")
         self.assertEqual(result[1].name, "model")
         self.assertEqual(result[1].value, model_name)
 
@@ -173,7 +173,7 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should contain model name and base_url
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].name, "base_url")
-        self.assertEqual(result[0].value, base_url)
+        self.assertEqual(result[0].value, f"{base_url}/v1/completions")
         self.assertEqual(result[1].name, "model")
         self.assertEqual(result[1].value, model_name)
 
@@ -185,7 +185,7 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should contain model name and base_url
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].name, "base_url")
-        self.assertEqual(result[0].value, "")
+        self.assertEqual(result[0].value, "/v1/completions")
         self.assertEqual(result[1].name, "model")
         self.assertEqual(result[1].value, model_name)
 
@@ -198,7 +198,7 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should contain model name and base_url
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].name, "base_url")
-        self.assertEqual(result[0].value, base_url)
+        self.assertEqual(result[0].value, f"{base_url.rstrip('/')}/v1/completions")
         self.assertEqual(result[1].name, "model")
         self.assertEqual(result[1].value, model_name)
 
@@ -211,7 +211,7 @@ class TestBaseUrlHandling(unittest.TestCase):
         # Should contain model name and base_url
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0].name, "base_url")
-        self.assertEqual(result[0].value, base_url)
+        self.assertEqual(result[0].value, f"{base_url.rstrip('/')}/completions")
         self.assertEqual(result[1].name, "model")
         self.assertEqual(result[1].value, model_name)
 
