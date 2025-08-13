@@ -505,7 +505,7 @@ class LMEvalCRBuilder:
                             and "valueFrom" in parsed_value
                         ):
                             # Use the parsed valueFrom structure
-                            env_entry.update(parsed_value)
+                            env_entry |= parsed_value
                         else:
                             # Use as simple string value
                             env_entry["value"] = value
