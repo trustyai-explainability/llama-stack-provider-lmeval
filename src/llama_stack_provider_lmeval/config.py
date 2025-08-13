@@ -23,40 +23,36 @@ class TLSConfig:
 
     def __post_init__(self):
         """Validate the configuration"""
-        if self.enable:
-            # If TLS is enabled and any certificate is specified, both must be set
-            if (self.cert_file is not None or self.cert_secret is not None):
-                if self.cert_file is None or self.cert_secret is None:
-                    raise LMEvalConfigError(
-                        "Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified"
-                    )
-                
-                # Validate certificate file name is safe
-                if not isinstance(self.cert_file, str) or not isinstance(self.cert_secret, str):
-                    raise LMEvalConfigError(
-                        "cert_file and cert_secret must be strings"
-                    )
-                
-                if not self.cert_file.strip() or not self.cert_secret.strip():
-                    raise LMEvalConfigError(
-                        "cert_file and cert_secret cannot be empty strings"
-                    )
-                
-                # Check for path traversal and unsafe characters
-                if '/' in self.cert_file or '\\' in self.cert_file or '..' in self.cert_file:
-                    raise LMEvalConfigError(
-                        f"cert_file contains invalid characters: {self.cert_file}"
-                    )
-                
-                # Allow only alphanumeric characters, dots, hyphens, and underscores
-                safe_chars = self.cert_file.replace('.', '').replace('-', '').replace('_', '')
-                if not safe_chars.isalnum():
-                    raise LMEvalConfigError(
-                        f"cert_file contains potentially unsafe characters: {self.cert_file}"
-                    )
-            
-            # If TLS is enabled but no certificates specified, that's valid (verify=True)
-            # No additional validation needed
+        if self.enable and (self.cert_file is not None or self.cert_secret is not None):
+            if self.cert_file is None or self.cert_secret is None:
+                raise LMEvalConfigError(
+                    "Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified"
+                )
+
+            # Validate certificate file name is safe
+            if not isinstance(self.cert_file, str) or not isinstance(self.cert_secret, str):
+                raise LMEvalConfigError(
+                    "cert_file and cert_secret must be strings"
+                )
+
+            if not self.cert_file.strip() or not self.cert_secret.strip():
+                raise LMEvalConfigError(
+                    "cert_file and cert_secret cannot be empty strings"
+                )
+
+            # Check for path traversal and unsafe characters
+            if '/' in self.cert_file or '\\' in self.cert_file or '..' in self.cert_file:
+                raise LMEvalConfigError(
+                    f"cert_file contains invalid characters: {self.cert_file}"
+                )
+
+            # Allow only alphanumeric characters, dots, hyphens, and underscores
+            safe_chars = self.cert_file.replace('.', '').replace('-', '').replace('_', '')
+            if not safe_chars.isalnum():
+                raise LMEvalConfigError(
+                    f"cert_file contains potentially unsafe characters: {self.cert_file}"
+                )
+
 
 
 @json_schema_type
