@@ -145,7 +145,7 @@ def _create_tls_volume_config(
     if not tls_enabled:
         return None, None
 
-    if not (cert_file is not None and cert_secret is not None):
+    if cert_file is None or cert_secret is None:
         # No certificate file or secret specified, no volumes needed
         return None, None
 
