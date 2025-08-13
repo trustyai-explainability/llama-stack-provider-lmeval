@@ -117,6 +117,3 @@ TLS configuration follows this priority order:
 1. **Environment Variables** (highest priority)
 2. **Provider Config** (`TLSConfig` object)
 3. **No TLS** (default)
-
-### Example Usage
-```
