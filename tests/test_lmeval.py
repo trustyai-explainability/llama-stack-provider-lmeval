@@ -819,6 +819,128 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         self.assertIsNotNone(pod_config.get("volumes"), "Pod should have volumes for TLS certificate")
         self.assertIsNotNone(pod_config.get("container", {}).get("volumeMounts"), "Container should have volume mounts for TLS certificate")
 
+    def test_create_cr_with_provider_config_tls_missing_cert_file(self):
+        """Test TLS enabled but cert_file missing, should raise validation error."""
+        from src.llama_stack_provider_lmeval.config import LMEvalConfigError
+        
+        # This should raise LMEvalConfigError when creating the config
+        with self.assertRaises(LMEvalConfigError) as excinfo:
+            config = LMEvalEvalProviderConfig(
+                namespace=self.namespace,
+                service_account=self.service_account,
+                tls=TLSConfig(
+                    enable=True,
+                    cert_file=None,
+                    cert_secret="vllm-ca-bundle"
+                ),
+            )
+        
+        # Verify the error message
+        self.assertIn("Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified", str(excinfo.exception))
+
+    def test_create_cr_with_provider_config_tls_missing_cert_secret(self):
+        """Test TLS enabled but cert_secret missing, should raise validation error."""
+        from src.llama_stack_provider_lmeval.config import LMEvalConfigError
+        
+        # This should raise LMEvalConfigError when creating the config
+        with self.assertRaises(LMEvalConfigError) as excinfo:
+            config = LMEvalEvalProviderConfig(
+                namespace=self.namespace,
+                service_account=self.service_account,
+                tls=TLSConfig(
+                    enable=True,
+                    cert_file="custom-ca.pem",
+                    cert_secret=None
+                ),
+            )
+        
+        # Verify the error message
+        self.assertIn("Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified", str(excinfo.exception))
+
+    def test_create_cr_with_provider_config_tls_empty_strings(self):
+        """Test TLS enabled but both certificates are empty strings, should raise validation error."""
+        from src.llama_stack_provider_lmeval.config import LMEvalConfigError
+        
+        # This should raise LMEvalConfigError when creating the config
+        with self.assertRaises(LMEvalConfigError) as excinfo:
+            config = LMEvalEvalProviderConfig(
+                namespace=self.namespace,
+                service_account=self.service_account,
+                tls=TLSConfig(
+                    enable=True,
+                    cert_file="",
+                    cert_secret=""
+                ),
+            )
+        
+        # Verify the error message
+        self.assertIn("cert_file and cert_secret cannot be empty strings", str(excinfo.exception))
+
+    def test_create_cr_with_provider_config_tls_unsafe_characters(self):
+        """Test TLS enabled but cert_file contains unsafe characters, should raise validation error."""
+        from src.llama_stack_provider_lmeval.config import LMEvalConfigError
+        
+        # This should raise LMEvalConfigError when creating the config
+        with self.assertRaises(LMEvalConfigError) as excinfo:
+            config = LMEvalEvalProviderConfig(
+                namespace=self.namespace,
+                service_account=self.service_account,
+                tls=TLSConfig(
+                    enable=True,
+                    cert_file="../malicious.pem",
+                    cert_secret="vllm-ca-bundle"
+                ),
+            )
+        
+        # Verify the error message
+        self.assertIn("contains invalid characters", str(excinfo.exception))
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_create_cr_with_provider_config_tls_no_certificates(self, mock_logger):
+        """Test TLS enabled but no certificates specified (verify=True case), should work correctly."""
+        # This should work without raising validation errors
+        config = LMEvalEvalProviderConfig(
+            namespace=self.namespace,
+            service_account=self.service_account,
+            tls=TLSConfig(
+                enable=True,
+                cert_file=None,
+                cert_secret=None
+            ),
+        )
+        self.builder._config = config
+
+        # Should not raise any exceptions
+        cr = self.builder.create_cr(
+            benchmark_id="lmeval::mmlu",
+            task_config=self.benchmark_config,
+            base_url="http://my-model-url",
+            limit="10",
+            stored_benchmark=self.stored_benchmark,
+        )
+
+        # Should have verify_certificate set to True
+        model_args = cr.get("spec", {}).get("modelArgs", [])
+        verify_cert_args = [
+            arg for arg in model_args if arg.get("name") == "verify_certificate"
+        ]
+
+        self.assertEqual(
+            len(verify_cert_args),
+            1,
+            "CR TLS configuration should be present when provider config tls is enabled",
+        )
+        self.assertEqual(
+            verify_cert_args[0].get("value"),
+            "True",
+            "TLS configuration value should be 'True' for verify=True case",
+        )
+
+        # No volumes should be created for verify=True case
+        pod_config = cr.get("spec", {}).get("pod", {})
+        self.assertIsNone(pod_config.get("volumes"), "Pod should not have volumes for verify=True case")
+        self.assertIsNone(pod_config.get("container", {}).get("volumeMounts"), "Container should not have volume mounts for verify=True case")
+
     @patch("src.llama_stack_provider_lmeval.lmeval.logger")
     def test_create_cr_without_tokenizer(self, mock_logger):
         """Creating CR without tokenizer specified."""
