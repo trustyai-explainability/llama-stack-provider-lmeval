@@ -876,6 +876,44 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         # Verify the error message
         self.assertIn("cert_file and cert_secret cannot be empty strings", str(excinfo.exception))
 
+    def test_create_cr_with_provider_config_tls_whitespace_only_cert_secret(self):
+        """Test TLS enabled but cert_secret is only whitespace, should raise validation error."""
+        from src.llama_stack_provider_lmeval.config import LMEvalConfigError
+        
+        # This should raise LMEvalConfigError when creating the config
+        with self.assertRaises(LMEvalConfigError) as excinfo:
+            config = LMEvalEvalProviderConfig(
+                namespace=self.namespace,
+                service_account=self.service_account,
+                tls=TLSConfig(
+                    enable=True,
+                    cert_file="test-cert.pem",
+                    cert_secret="   "  # Only whitespace
+                ),
+            )
+        
+        # Verify the error message
+        self.assertIn("cert_file and cert_secret cannot be empty strings", str(excinfo.exception))
+
+    def test_create_cr_with_provider_config_tls_whitespace_only_cert_file(self):
+        """Test TLS enabled but cert_file is only whitespace, should raise validation error."""
+        from src.llama_stack_provider_lmeval.config import LMEvalConfigError
+        
+        # This should raise LMEvalConfigError when creating the config
+        with self.assertRaises(LMEvalConfigError) as excinfo:
+            config = LMEvalEvalProviderConfig(
+                namespace=self.namespace,
+                service_account=self.service_account,
+                tls=TLSConfig(
+                    enable=True,
+                    cert_file="   ",  # Only whitespace
+                    cert_secret="test-secret"
+                ),
+            )
+        
+        # Verify the error message
+        self.assertIn("cert_file and cert_secret cannot be empty strings", str(excinfo.exception))
+
     def test_create_cr_with_provider_config_tls_unsafe_characters(self):
         """Test TLS enabled but cert_file contains unsafe characters, should raise validation error."""
         from src.llama_stack_provider_lmeval.config import LMEvalConfigError
