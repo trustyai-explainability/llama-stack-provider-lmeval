@@ -40,26 +40,26 @@ def _get_tls_config_from_env(provider_config=None) -> Optional[Union[str, bool]]
     if not tls_enabled:
         # Fallback to provider config if environment variables not set
         if (
-            provider_config
-            and hasattr(provider_config, "tls")
-            and provider_config.tls is not None
-        ):
-            if provider_config.tls.enable:
-                if (
-                    provider_config.tls.cert_file is not None
-                    and provider_config.tls.cert_secret is not None
-                ):
-                    # Both are set, return the full path where the certificate will be mounted
-                    mount_path = "/etc/ssl/certs"
-                    full_cert_path = f"{mount_path}/{provider_config.tls.cert_file}"
-                    logger.debug(
-                        "Using TLS configuration from provider config: %s", full_cert_path
-                    )
-                    return full_cert_path
-                else:
-                    # TLS enabled but no certificates specified
-                    logger.debug("Using TLS configuration from provider config: True")
-                    return True
+                    provider_config
+                    and hasattr(provider_config, "tls")
+                    and provider_config.tls is not None
+                ) and provider_config.tls.enable:
+            if (
+                provider_config.tls.cert_file is not None
+                and provider_config.tls.cert_secret is not None
+            ):
+                # Both are set, return the full path where the certificate will be mounted
+                mount_path = "/etc/ssl/certs"
+                full_cert_path = f"{mount_path}/{provider_config.tls.cert_file}"
+                logger.debug(
+                    "Using TLS configuration from provider config: %s", full_cert_path
+                )
+                return full_cert_path
+            else:
+                # TLS enabled but no certificates specified
+                logger.debug("Using TLS configuration from provider config: True")
+                return True
+
         return None
 
     cert_file = os.environ.get("TRUSTYAI_LMEVAL_CERT_FILE")
