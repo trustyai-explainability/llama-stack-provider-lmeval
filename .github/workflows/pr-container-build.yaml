@@ -37,7 +37,7 @@ jobs:
       - name: Create temporary build directory
         run: |
           mkdir -p build-context
-          
+
       - name: Copy provider code to build context
         run: |
           cp -r src/ build-context/
@@ -50,11 +50,11 @@ jobs:
           cat > build-context/Containerfile << 'EOF'
           FROM registry.access.redhat.com/ubi9/python-312:latest
           WORKDIR /opt/app-root
-          
+
           # Copy the local provider code
           COPY src/ /opt/app-root/src/
           COPY pyproject.toml /opt/app-root/
-          
+
           RUN pip install sqlalchemy
           RUN pip install \
               aiosqlite \
@@ -74,14 +74,14 @@ jobs:
           RUN pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           RUN pip install --no-deps sentence-transformers
           RUN pip install --no-cache llama-stack==0.2.16
-          
+
           # Install the local provider package
           RUN pip install -e /opt/app-root/
-          
+
           RUN mkdir -p ${HOME}/.llama/providers.d ${HOME}/.cache
           COPY run.yaml ${APP_ROOT}/run.yaml
           COPY providers.d/ ${HOME}/.llama/providers.d/
-          
+
           ENTRYPOINT ["python", "-m", "llama_stack.distribution.server.server", "--config", "/opt/app-root/run.yaml"]
           EOF
 

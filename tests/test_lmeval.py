@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from src.llama_stack_provider_lmeval.config import LMEvalEvalProviderConfig
 from src.llama_stack_provider_lmeval.lmeval import LMEvalCRBuilder
@@ -206,7 +206,9 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         )
 
         model_args = cr.get("spec", {}).get("modelArgs", [])
-        tokenized_requests_args = [arg for arg in model_args if arg.get("name") == "tokenized_requests"]
+        tokenized_requests_args = [
+            arg for arg in model_args if arg.get("name") == "tokenized_requests"
+        ]
 
         self.assertEqual(
             len(tokenized_requests_args),

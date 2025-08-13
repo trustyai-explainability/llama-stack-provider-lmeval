@@ -1,5 +1,4 @@
 import logging
-from typing import Dict, Optional
 
 from llama_stack.apis.datatypes import Api
 from llama_stack.providers.datatypes import ProviderSpec
@@ -11,9 +10,10 @@ from .provider import get_provider_spec
 # Set up logging
 logger = logging.getLogger(__name__)
 
+
 async def get_adapter_impl(
-        config: LMEvalEvalProviderConfig,
-        deps: Optional[Dict[Api, ProviderSpec]] = None,
+    config: LMEvalEvalProviderConfig,
+    deps: dict[Api, ProviderSpec] | None = None,
 ) -> LMEval:
     """Get an LMEval implementation from the configuration.
 
@@ -31,8 +31,6 @@ async def get_adapter_impl(
         if deps is None:
             deps = {}
 
-
-
         # Extract base_url from config if available
         base_url = None
         if hasattr(config, "model_args") and config.model_args:
@@ -44,15 +42,13 @@ async def get_adapter_impl(
 
         return LMEval(config=config)
     except Exception as e:
-        raise Exception(
-            f"Failed to create LMEval implementation: {str(e)}"
-        ) from e
+        raise Exception(f"Failed to create LMEval implementation: {str(e)}") from e
+
 
 __all__ = [
-     # Factory methods
+    # Factory methods
     "get_adapter_impl",
     # Configurations
     "LMEval",
     "get_provider_spec",
-
 ]

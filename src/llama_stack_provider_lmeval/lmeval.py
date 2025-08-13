@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import yaml
 from kubernetes import client as k8s_client
@@ -33,23 +33,23 @@ class ModelArg(BaseModel):
 class ContainerConfig(BaseModel):
     """Container configuration for the LMEval CR."""
 
-    env: Optional[List[Dict[str, Any]]] = None
+    env: list[dict[str, Any]] | None = None
 
 
 class PodConfig(BaseModel):
     """Pod configuration for the LMEval CR."""
 
     container: ContainerConfig
-    serviceAccountName: Optional[str] = None
+    serviceAccountName: str | None = None
 
 
 class GitSource(BaseModel):
     """Git source for custom tasks."""
 
     url: str
-    branch: Optional[str] = None
-    commit: Optional[str] = None
-    path: Optional[str] = None
+    branch: str | None = None
+    commit: str | None = None
+    path: str | None = None
 
     def model_dump(self, **kwargs):
         result = super().model_dump(**kwargs)
@@ -77,8 +77,8 @@ class CustomTasks(BaseModel):
 class TaskList(BaseModel):
     """Task list configuration for the LMEval Custom Resource."""
 
-    taskNames: List[str]
-    customTasks: Optional[CustomTasks] = None
+    taskNames: list[str]
+    customTasks: CustomTasks | None = None
 
     def model_dump(self, **kwargs):
         result = super().model_dump(**kwargs)
@@ -96,10 +96,10 @@ class LMEvalSpec(BaseModel):
     taskList: TaskList
     logSamples: bool = True
     batchSize: str = "1"
-    limit: Optional[str] = None
-    modelArgs: List[ModelArg]
-    pod: Optional[PodConfig] = None
-    offline: Optional[Dict[str, Any]] = None
+    limit: str | None = None
+    modelArgs: list[ModelArg]
+    pod: PodConfig | None = None
+    offline: dict[str, Any] | None = None
 
     def model_dump(self, **kwargs):
         result = super().model_dump(**kwargs)
@@ -144,9 +144,7 @@ class LMEvalCR(BaseModel):
 class LMEvalCRBuilder:
     """An utility class which creates LMEval Custom Resources from BenchmarkConfigs."""
 
-    def __init__(
-        self, namespace: str = "default", service_account: Optional[str] = None
-    ):
+    def __init__(self, namespace: str = "default", service_account: str | None = None):
         """Initialize the LMEvalCRBuilder.
 
         Args:
@@ -169,7 +167,7 @@ class LMEvalCRBuilder:
         """
         # Strip trailing slashes
         cleaned_url = base_url.rstrip("/")
-        
+
         # Check if URL already ends with v1
         if cleaned_url.endswith("/v1"):
             return f"{cleaned_url}/completions"
@@ -177,8 +175,8 @@ class LMEvalCRBuilder:
             return f"{cleaned_url}/v1/completions"
 
     def _create_model_args(
-        self, model_name: str, base_url: Optional[str] = None
-    ) -> List[ModelArg]:
+        self, model_name: str, base_url: str | None = None
+    ) -> list[ModelArg]:
         """Create model arguments for the CR.
 
         Args:
@@ -207,8 +205,8 @@ class LMEvalCRBuilder:
         return model_args
 
     def _collect_env_vars(
-        self, task_config: BenchmarkConfig, stored_benchmark: Optional[Benchmark]
-    ) -> List[Dict[str, Any]]:
+        self, task_config: BenchmarkConfig, stored_benchmark: Benchmark | None
+    ) -> list[dict[str, Any]]:
         """Collect environment variables.
 
         Args:
@@ -237,9 +235,7 @@ class LMEvalCRBuilder:
                     else:
                         # Handle simple string value
                         env_vars.append({"name": key, "value": str(value)})
-                        logger.debug(
-                            f"Added environment variable from metadata: {key}"
-                        )
+                        logger.debug(f"Added environment variable from metadata: {key}")
 
         # Get environment variables from stored benchmark metadata
         if (
@@ -290,7 +286,7 @@ class LMEvalCRBuilder:
 
         return task_name
 
-    def _create_pod_config(self, env_vars: List[Dict[str, Any]]) -> Optional[PodConfig]:
+    def _create_pod_config(self, env_vars: list[dict[str, Any]]) -> PodConfig | None:
         """Create pod configuration with environment variables.
 
         Args:
@@ -306,16 +302,20 @@ class LMEvalCRBuilder:
         processed_env_vars = []
         for env_var in env_vars:
             env_entry = {"name": env_var["name"]}
-            
+
             # Check if this env var has a secret reference
             if "secret" in env_var and env_var["secret"]:
                 # Custom secret structure: name/value/secret
                 secret_ref = env_var["secret"]
-                if isinstance(secret_ref, dict) and "name" in secret_ref and "key" in secret_ref:
+                if (
+                    isinstance(secret_ref, dict)
+                    and "name" in secret_ref
+                    and "key" in secret_ref
+                ):
                     env_entry["valueFrom"] = {
                         "secretKeyRef": {
                             "name": secret_ref["name"],
-                            "key": secret_ref["key"]
+                            "key": secret_ref["key"],
                         }
                     }
                 else:
@@ -328,12 +328,20 @@ class LMEvalCRBuilder:
             else:
                 # Handle value field (simple or complex structures)
                 value = env_var.get("value")
-                if isinstance(value, str) and value.startswith("{") and value.endswith("}"):
+                if (
+                    isinstance(value, str)
+                    and value.startswith("{")
+                    and value.endswith("}")
+                ):
                     # A stringified dict, parse it
                     try:
                         import ast
+
                         parsed_value = ast.literal_eval(value)
-                        if isinstance(parsed_value, dict) and "valueFrom" in parsed_value:
+                        if (
+                            isinstance(parsed_value, dict)
+                            and "valueFrom" in parsed_value
+                        ):
                             # Use the parsed valueFrom structure
                             env_entry.update(parsed_value)
                         else:
@@ -348,7 +356,7 @@ class LMEvalCRBuilder:
                 else:
                     # Simple string value
                     env_entry["value"] = str(value) if value is not None else ""
-            
+
             processed_env_vars.append(env_entry)
 
         # Add environment variables to the container config
@@ -368,8 +376,8 @@ class LMEvalCRBuilder:
         return pod_config
 
     def _extract_git_source(
-        self, task_config: BenchmarkConfig, stored_benchmark: Optional[Benchmark]
-    ) -> Optional[Dict[str, Any]]:
+        self, task_config: BenchmarkConfig, stored_benchmark: Benchmark | None
+    ) -> dict[str, Any] | None:
         """Extract git source data from task config or stored benchmark.
 
         Args:
@@ -421,8 +429,8 @@ class LMEvalCRBuilder:
         return None
 
     def _extract_pvc_name(
-        self, task_config: BenchmarkConfig, stored_benchmark: Optional[Benchmark]
-    ) -> Optional[str]:
+        self, task_config: BenchmarkConfig, stored_benchmark: Benchmark | None
+    ) -> str | None:
         """Get PVC name from metadata with structure input.storage.pvc.
 
         Args:
@@ -466,9 +474,9 @@ class LMEvalCRBuilder:
         self,
         benchmark_id: str,
         task_config: BenchmarkConfig,
-        base_url: Optional[str] = None,
-        limit: Optional[str] = None,
-        stored_benchmark: Optional[Benchmark] = None,
+        base_url: str | None = None,
+        limit: str | None = None,
+        stored_benchmark: Benchmark | None = None,
     ) -> dict:
         """Create LMEval Custom Resource from a Llama Stack BenchmarkConfig.
 
@@ -509,8 +517,13 @@ class LMEvalCRBuilder:
             and stored_benchmark.metadata
             and "tokenized_requests" in stored_benchmark.metadata
         ):
-            tokenized_requests_value = stored_benchmark.metadata.get("tokenized_requests")
-            if isinstance(tokenized_requests_value, (bool, str)) and tokenized_requests_value is not None:
+            tokenized_requests_value = stored_benchmark.metadata.get(
+                "tokenized_requests"
+            )
+            if (
+                isinstance(tokenized_requests_value, (bool, str))
+                and tokenized_requests_value is not None
+            ):
                 value_str = str(tokenized_requests_value)
                 logger.debug(f"Using tokenized_requests from metadata: {value_str}")
                 model_args.append(ModelArg(name="tokenized_requests", value=value_str))
@@ -609,16 +622,18 @@ def _resolve_namespace(config: LMEvalEvalProviderConfig) -> str:
         return config.namespace.strip()
 
     # Check from environment variable
-    env_namespace = os.getenv('TRUSTYAI_LM_EVAL_NAMESPACE')  # noqa: Q000
+    env_namespace = os.getenv("TRUSTYAI_LM_EVAL_NAMESPACE")  # noqa: Q000
     if env_namespace:
         logger.debug(f"Using namespace from environment variable: {env_namespace}")
         return env_namespace
 
     # Check from service account namespace file
-    service_account_namespace_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    service_account_namespace_path = (
+        "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    )
     if Path(service_account_namespace_path).exists():
         try:
-            with open(service_account_namespace_path, 'r') as f:
+            with open(service_account_namespace_path) as f:
                 namespace = f.read().strip()
                 if namespace:
                     logger.debug(f"Using namespace from service account: {namespace}")
@@ -629,13 +644,17 @@ def _resolve_namespace(config: LMEvalEvalProviderConfig) -> str:
     # Check for POD_NAMESPACE environment variable
     pod_namespace = os.getenv("POD_NAMESPACE")
     if pod_namespace:
-        logger.debug(f"Using namespace from POD_NAMESPACE environment variable: {pod_namespace}")
+        logger.debug(
+            f"Using namespace from POD_NAMESPACE environment variable: {pod_namespace}"
+        )
         return pod_namespace
 
     # Check for NAMESPACE environment variable
-    alt_namespace = os.getenv('NAMESPACE')  # noqa: Q000
+    alt_namespace = os.getenv("NAMESPACE")  # noqa: Q000
     if alt_namespace:
-        logger.debug(f"Using namespace from NAMESPACE environment variable: {alt_namespace}")
+        logger.debug(
+            f"Using namespace from NAMESPACE environment variable: {alt_namespace}"
+        )
         return alt_namespace
 
     # No namespace found - fail explicitly
@@ -651,22 +670,22 @@ def _resolve_namespace(config: LMEvalEvalProviderConfig) -> str:
 class LMEval(Eval, BenchmarksProtocolPrivate):
     def __init__(self, config: LMEvalEvalProviderConfig):
         self._config = config
-        
+
         self._namespace = _resolve_namespace(self._config)
-        
-        logger.debug(
-            f"LMEval provider initialized with namespace: {self._namespace}"
-        )
+
+        logger.debug(f"LMEval provider initialized with namespace: {self._namespace}")
         logger.debug(f"LMEval provider config values: {vars(self._config)}")
         self.benchmarks = {}
-        self._jobs: List[Job] = []
+        self._jobs: list[Job] = []
         self._job_metadata = {}
 
         self._k8s_client = None
         self._k8s_custom_api = None
         if self.use_k8s:
             self._init_k8s_client()
-            logger.debug(f"Initialized Kubernetes client with namespace: {self._namespace}")
+            logger.debug(
+                f"Initialized Kubernetes client with namespace: {self._namespace}"
+            )
             self._cr_builder = LMEvalCRBuilder(
                 namespace=self._namespace,
                 service_account=getattr(self._config, "service_account", None),
@@ -708,7 +727,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         """
         return ListBenchmarksResponse(data=list(self.benchmarks.values()))
 
-    async def get_benchmark(self, benchmark_id: str) -> Optional[Benchmark]:
+    async def get_benchmark(self, benchmark_id: str) -> Benchmark | None:
         """Get a specific benchmark by ID.
 
         Args:
@@ -850,7 +869,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
     def _process_benchmark_config(
         self, benchmark_config: BenchmarkConfig
-    ) -> Optional[str]:
+    ) -> str | None:
         """Process benchmark configuration for limit.
 
         Args:
@@ -904,7 +923,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         benchmark_id: str,
         benchmark_config: BenchmarkConfig,
         limit: str = "2",
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """Run an evaluation for a specific benchmark and configuration.
 
         Args:
@@ -996,8 +1015,8 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
     async def evaluate_rows(
         self,
         benchmark_id: str,
-        input_rows: List[Dict[str, Any]],
-        scoring_functions: List[str],
+        input_rows: list[dict[str, Any]],
+        scoring_functions: list[str],
         benchmark_config: BenchmarkConfig,
     ) -> EvaluateResponse:
         """Evaluate a list of rows on a benchmark.
@@ -1031,9 +1050,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         return EvaluateResponse(generations=generations, scores=scores)
 
-    async def job_status(
-        self, benchmark_id: str, job_id: str
-    ) -> Optional[Dict[str, str]]:
+    async def job_status(self, benchmark_id: str, job_id: str) -> dict[str, str] | None:
         """Get the status of a running evaluation job.
 
         Args:
@@ -1145,7 +1162,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             logger.error(f"Failed to cancel job in Kubernetes: {e}")
             raise LMEvalConfigError(f"Failed to cancel job: {e}") from e
 
-    def _get_job_and_k8s_name(self, job_id: str) -> Tuple[Optional[Job], Optional[str]]:
+    def _get_job_and_k8s_name(self, job_id: str) -> tuple[Job | None, str | None]:
         """Get job and Kubernetes resource name.
 
         Args:
@@ -1167,7 +1184,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         return job, k8s_name
 
-    def _get_k8s_cr(self, k8s_name: str) -> Optional[Dict[str, Any]]:
+    def _get_k8s_cr(self, k8s_name: str) -> dict[str, Any] | None:
         """Get Kubernetes custom resource.
 
         Args:
@@ -1194,7 +1211,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
     def _parse_evaluation_results(
         self, results_str: str
-    ) -> Tuple[Dict[str, ScoringResult], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> tuple[dict[str, ScoringResult], list[dict[str, Any]], dict[str, Any]]:
         """Parse evaluation results from JSON string.
 
         Args:

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Union
-
-from pydantic import Field
+from typing import Any
 
 from llama_stack.apis.eval import BenchmarkConfig, EvalCandidate
-from .errors import LMEvalConfigError
 from llama_stack.schema_utils import json_schema_type
+from pydantic import Field
+
+from .errors import LMEvalConfigError
 
 
 @json_schema_type
@@ -28,10 +28,10 @@ class LMEvalBenchmarkConfig(BenchmarkConfig):
     eval_candidate: EvalCandidate
     # FIXME: mode is only present temporarily and for debug purposes, it will be removed
     # mode: str = Field(description="Mode of the benchmark", default="production")
-    env_vars: Optional[List[Dict[str, str]]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    env_vars: list[dict[str, str]] | None = None
+    metadata: dict[str, Any] | None = None
     # Optional TLS certificate path (or False, to disable TLS verification)
-    tls: Optional[Union[str, bool]] = None
+    tls: str | bool | None = None
 
     def __post_init__(self):
         """Validate the configuration"""
@@ -47,11 +47,11 @@ class K8sLMEvalConfig:
     """Configuration for Kubernetes LMEvalJob CR"""
 
     model: str
-    model_args: Optional[List[Dict[str, str]]] = field(default_factory=list)
-    task_list: Optional[Dict[str, List[str]]] = None
+    model_args: list[dict[str, str]] | None = field(default_factory=list)
+    task_list: dict[str, list[str]] | None = None
     log_samples: bool = True
     namespace: str = "default"
-    env_vars: Optional[List[Dict[str, str]]] = None
+    env_vars: list[dict[str, str]] | None = None
 
     def __post_init__(self):
         """Validate the configuration"""
@@ -71,14 +71,14 @@ class LMEvalEvalProviderConfig:
     # FIXME: Hardcoded just for debug purposes
     base_url: str = "http://llamastack-service:8321"
     namespace: str | None = None
-    kubeconfig_path: Optional[str] = None
+    kubeconfig_path: str | None = None
     # Service account to use for Kubernetes deployment
-    service_account: Optional[str] = None
+    service_account: str | None = None
     # Default tokenizer to use when none is specified in the ModelCandidate
     default_tokenizer: str = "google/flan-t5-base"
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
     # Optional TLS certificate path (or False, to disable TLS verification)
-    tls: Optional[Union[str, bool]] = None
+    tls: str | bool | None = None
 
     def __post_init__(self):
         """Validate the configuration"""

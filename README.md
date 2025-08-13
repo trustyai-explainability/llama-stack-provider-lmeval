@@ -80,3 +80,16 @@ This repository implements [TrustyAI's LM-Eval](https://trustyai-explainability.
     ```
 
 9. Navigate to `demos/` to run the demo notebooks
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed information on:
+
+- Development setup and prerequisites
+- Pre-commit hooks and code quality standards
+- Running tests and development workflow
+- Troubleshooting common issues
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
