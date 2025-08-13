@@ -132,15 +132,15 @@ def _create_tls_volume_config(
 
     # If environment variables not set, check provider config
     if (
-        not tls_enabled
-        and provider_config
-        and hasattr(provider_config, "tls")
-        and provider_config.tls is not None
-    ):
-        if provider_config.tls.enable:
-            tls_enabled = True
-            cert_file = provider_config.tls.cert_file
-            cert_secret = provider_config.tls.cert_secret
+            not tls_enabled
+            and provider_config
+            and hasattr(provider_config, "tls")
+            and provider_config.tls is not None
+        ) and provider_config.tls.enable:
+        tls_enabled = True
+        cert_file = provider_config.tls.cert_file
+        cert_secret = provider_config.tls.cert_secret
+
 
     if not tls_enabled:
         return None, None
