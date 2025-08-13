@@ -356,9 +356,18 @@ class LMEvalCRBuilder:
         if hasattr(benchmark_config, "model") and benchmark_config.model:
             model_args.append(ModelArg(name="model", value=benchmark_config.model))
 
-        # Add custom model args from benchmark config
+        # Add custom model args from benchmark config, avoiding duplicate keys
         if hasattr(benchmark_config, "model_args") and benchmark_config.model_args:
-            model_args.extend(benchmark_config.model_args)
+            existing_arg_names = {arg.name for arg in model_args}
+            for arg in benchmark_config.model_args:
+                if arg.name not in existing_arg_names:
+                    model_args.append(arg)
+                else:
+                    # Optionally, update the value for existing keys instead of skipping
+                    for i, existing_arg in enumerate(model_args):
+                        if existing_arg.name == arg.name:
+                            model_args[i] = arg
+                            break
 
         # Add TLS configuration
         env_tls_config = _get_tls_config_from_env(self._config)
