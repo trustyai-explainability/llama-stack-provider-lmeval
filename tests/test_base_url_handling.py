@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import MagicMock
 
-from src.llama_stack_provider_lmeval.config import TLSConfig
+from src.llama_stack_provider_lmeval.config import TLSConfig, LMEvalConfigError
 from src.llama_stack_provider_lmeval.lmeval import LMEvalCRBuilder, ModelArg
 
 BASE_URL = "http://example.com"
@@ -258,8 +258,8 @@ class TestBaseUrlHandling(unittest.TestCase):
         self.assertEqual(verify_cert_arg.value, "True")
 
     def test_create_model_args_fallback_to_provider_tls_when_benchmark_tls_none(self):
-        """Test _create_model_args fallback to provider TLS when benchmark TLS is None."""
-        _model_name = "test-model"
+        """Test _create_model_args falls back to provider config TLS when benchmark_tls is None."""
+        model_name = "test-model"
 
         # Set provider config tls to True
         self.builder._config.tls = TLSConfig(enable=True)
@@ -276,6 +276,81 @@ class TestBaseUrlHandling(unittest.TestCase):
         )
         self.assertIsNotNone(verify_cert_arg)
         self.assertEqual(verify_cert_arg.value, "True")
+
+    def test_create_model_args_with_invalid_provider_config_tls(self):
+        """Test _create_model_args with invalid provider config TLS (only cert_file set)."""
+        model_name = "test-model"
+
+        # Set provider config tls with only cert_file (invalid configuration)
+        self.builder._config.tls = TLSConfig(enable=True, cert_file="test-cert.pem", cert_secret=None)
+
+        # This should raise LMEvalConfigError due to validation failure
+        with self.assertRaises(LMEvalConfigError) as context:
+            self.builder._create_model_args(BASE_URL, self.mock_benchmark_config)
+        
+        # Verify the error message
+        self.assertIn("Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified", str(context.exception))
+
+    def test_create_model_args_with_invalid_provider_config_tls_only_cert_secret(self):
+        """Test _create_model_args with invalid provider config TLS (only cert_secret set)."""
+        model_name = "test-model"
+
+        # Set provider config tls with only cert_secret (invalid configuration)
+        self.builder._config.tls = TLSConfig(enable=True, cert_file=None, cert_secret="test-secret")
+
+        # This should raise LMEvalConfigError due to validation failure
+        with self.assertRaises(LMEvalConfigError) as context:
+            self.builder._create_model_args(BASE_URL, self.mock_benchmark_config)
+        
+        # Verify the error message
+        self.assertIn("Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified", str(context.exception))
+
+    def test_create_model_args_with_invalid_provider_config_tls_empty_strings(self):
+        """Test _create_model_args with invalid provider config TLS (empty strings)."""
+        model_name = "test-model"
+
+        # Set provider config tls with empty strings (invalid configuration)
+        self.builder._config.tls = TLSConfig(enable=True, cert_file="", cert_secret="")
+
+        # This should raise LMEvalConfigError due to validation failure
+        with self.assertRaises(LMEvalConfigError) as context:
+            self.builder._create_model_args(BASE_URL, self.mock_benchmark_config)
+        
+        # Verify the error message
+        self.assertIn("cert_file and cert_secret cannot be empty strings", str(context.exception))
+
+    def test_create_model_args_with_invalid_provider_config_tls_unsafe_characters(self):
+        """Test _create_model_args with invalid provider config TLS (unsafe characters in cert_file)."""
+        model_name = "test-model"
+
+        # Set provider config tls with unsafe characters in cert_file
+        self.builder._config.tls = TLSConfig(enable=True, cert_file="../malicious.pem", cert_secret="test-secret")
+
+        # This should raise LMEvalConfigError due to validation failure
+        with self.assertRaises(LMEvalConfigError) as context:
+            self.builder._create_model_args(BASE_URL, self.mock_benchmark_config)
+        
+        # Verify the error message
+        self.assertIn("contains invalid characters", str(context.exception))
+
+    def test_create_model_args_with_valid_provider_config_tls_certificates(self):
+        """Test _create_model_args with valid provider config TLS (both certificates set)."""
+        model_name = "test-model"
+
+        # Set provider config tls with both certificates properly set
+        self.builder._config.tls = TLSConfig(enable=True, cert_file="test-cert.pem", cert_secret="test-secret")
+
+        result = self.builder._create_model_args(BASE_URL, self.mock_benchmark_config)
+
+        # Should have model, base_url, and verify_certificate args
+        self.assertEqual(len(result), 3)
+
+        # Check verify_certificate arg - should contain the full certificate path
+        verify_cert_arg = next(
+            (arg for arg in result if arg.name == "verify_certificate"), None
+        )
+        self.assertIsNotNone(verify_cert_arg)
+        self.assertEqual(verify_cert_arg.value, "/etc/ssl/certs/test-cert.pem")
 
 
 if __name__ == "__main__":
