@@ -141,12 +141,26 @@ def _create_tls_volume_config(
         cert_file = provider_config.tls.cert_file
         cert_secret = provider_config.tls.cert_secret
 
-
     if not tls_enabled:
         return None, None
 
-    if cert_file is None or cert_secret is None:
-        # No certificate file or secret specified, no volumes needed
+    # Create TLSConfig object from environment variables for validation
+    try:
+        from .config import TLSConfig
+        tls_config = TLSConfig(
+            enable=True,
+            cert_file=cert_file,
+            cert_secret=cert_secret
+        )
+    except Exception as e:
+        logger.warning(
+            "TLS configuration validation failed: %s. No volumes will be created.", str(e)
+        )
+        return None, None
+
+    # If validation passed but no certificates specified, no volumes needed
+    if tls_config.cert_file is None or tls_config.cert_secret is None:
+        logger.debug("TLS enabled but no certificates specified, no volumes created")
         return None, None
 
     # Mount path is predefined as /etc/ssl/certs/
@@ -160,14 +174,15 @@ def _create_tls_volume_config(
         {
             "name": "tls-cert",
             "secret": {
-                "secretName": cert_secret,
-                "items": [{"key": cert_file, "path": cert_file}],
+                "secretName": tls_config.cert_secret,
+                "items": [{"key": tls_config.cert_file, "path": tls_config.cert_file}],
             },
         }
     ]
 
     logger.info(
-        "Created TLS volume config: mount=%s, secret=%s, cert_file=%s", mount_path, cert_secret, cert_file
+        "Created TLS volume config: mount=%s, secret=%s, cert_file=%s", 
+        mount_path, tls_config.cert_secret, tls_config.cert_file
     )
     return volume_mounts, volumes
 
@@ -1568,3 +1583,4 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         if self._k8s_client:
             self._k8s_client.close()
             logger.debug("Closed Kubernetes client connection")
+

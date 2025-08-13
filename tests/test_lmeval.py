@@ -243,6 +243,178 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         self.assertIsNone(result)
 
     @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_tls_volume_config_with_empty_cert_file(self, mock_logger):
+        """Test TLS volume config when cert_file is empty string."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = ""
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        volume_mounts, volumes = _create_tls_volume_config()
+        
+        # Should return None, None due to validation failure
+        self.assertIsNone(volume_mounts)
+        self.assertIsNone(volumes)
+        
+        # Should log warning about validation failure
+        mock_logger.warning.assert_called()
+        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+        self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_tls_volume_config_with_empty_cert_secret(self, mock_logger):
+        """Test TLS volume config when cert_secret is empty string."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = ""
+        
+        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        volume_mounts, volumes = _create_tls_volume_config()
+        
+        # Should return None, None due to validation failure
+        self.assertIsNone(volume_mounts)
+        self.assertIsNone(volumes)
+        
+        # Should log warning about validation failure
+        mock_logger.warning.assert_called()
+        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+        self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_tls_volume_config_with_path_traversal_in_cert_file(self, mock_logger):
+        """Test TLS volume config when cert_file contains path traversal characters."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "../malicious.pem"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        volume_mounts, volumes = _create_tls_volume_config()
+        
+        # Should return None, None due to validation failure
+        self.assertIsNone(volume_mounts)
+        self.assertIsNone(volumes)
+        
+        # Should log warning about validation failure
+        mock_logger.warning.assert_called()
+        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+        self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_tls_volume_config_with_unsafe_characters_in_cert_file(self, mock_logger):
+        """Test TLS volume config when cert_file contains unsafe characters."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test@cert.pem"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        volume_mounts, volumes = _create_tls_volume_config()
+        
+        # Should return None, None due to validation failure
+        self.assertIsNone(volume_mounts)
+        self.assertIsNone(volumes)
+        
+        # Should log warning about validation failure
+        mock_logger.warning.assert_called()
+        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+        self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_tls_volume_config_with_valid_cert_file(self, mock_logger):
+        """Test TLS volume config with valid certificate file name."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        volume_mounts, volumes = _create_tls_volume_config()
+        
+        # Should return valid volume configuration
+        self.assertIsNotNone(volume_mounts)
+        self.assertIsNotNone(volumes)
+        self.assertEqual(len(volume_mounts), 1)
+        self.assertEqual(len(volumes), 1)
+        
+        # Verify volume mount configuration
+        volume_mount = volume_mounts[0]
+        self.assertEqual(volume_mount["name"], "tls-cert")
+        self.assertEqual(volume_mount["mountPath"], "/etc/ssl/certs")
+        self.assertTrue(volume_mount["readOnly"])
+        
+        # Verify volume configuration
+        volume = volumes[0]
+        self.assertEqual(volume["name"], "tls-cert")
+        self.assertEqual(volume["secret"]["secretName"], "test-secret")
+        self.assertEqual(len(volume["secret"]["items"]), 1)
+        self.assertEqual(volume["secret"]["items"][0]["key"], "test-cert.pem")
+        self.assertEqual(volume["secret"]["items"][0]["path"], "test-cert.pem")
+        
+        # Should log info about successful creation
+        mock_logger.info.assert_called_once()
+        info_call_args = mock_logger.info.call_args[0]
+        self.assertIn("Created TLS volume config", info_call_args[0])
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_tls_volume_config_with_whitespace_only_cert_file(self, mock_logger):
+        """Test TLS volume config when cert_file contains only whitespace."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "   "
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        volume_mounts, volumes = _create_tls_volume_config()
+        
+        # Should return None, None due to validation failure
+        self.assertIsNone(volume_mounts)
+        self.assertIsNone(volumes)
+        
+        # Should log warning about validation failure
+        mock_logger.warning.assert_called()
+        warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+        self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_tls_volume_config_with_valid_special_characters(self, mock_logger):
+        """Test TLS volume config with valid certificate file name containing dots, hyphens, and underscores."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert-v1.2.pem"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        volume_mounts, volumes = _create_tls_volume_config()
+        
+        # Should return valid volume configuration
+        self.assertIsNotNone(volume_mounts)
+        self.assertIsNotNone(volumes)
+        self.assertEqual(len(volume_mounts), 1)
+        self.assertEqual(len(volumes), 1)
+        
+        # Verify volume configuration uses the correct certificate file name
+        volume = volumes[0]
+        self.assertEqual(volume["secret"]["items"][0]["key"], "test-cert-v1.2.pem")
+        self.assertEqual(volume["secret"]["items"][0]["path"], "test-cert-v1.2.pem")
+        
+        # Should log info about successful creation
+        mock_logger.info.assert_called_once()
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_tls_volume_config_with_no_certificates(self, mock_logger):
+        """Test TLS volume config when TLS is enabled but no certificates specified (verify=True case)."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        # Neither TRUSTYAI_LMEVAL_CERT_FILE nor TRUSTYAI_LMEVAL_CERT_SECRET are set
+        
+        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        volume_mounts, volumes = _create_tls_volume_config()
+        
+        # Should return None, None since no volumes are needed for verify=True
+        self.assertIsNone(volume_mounts)
+        self.assertIsNone(volumes)
+        
+        # Should log debug about no certificates specified
+        mock_logger.debug.assert_called()
+        debug_calls = [call[0][0] for call in mock_logger.debug.call_args_list]
+        self.assertTrue(any("no certificates specified, no volumes created" in call for call in debug_calls))
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
     def test_logging_when_only_cert_file_set(self, mock_logger):
         """Test that appropriate error logging occurs when only cert_file is set."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
