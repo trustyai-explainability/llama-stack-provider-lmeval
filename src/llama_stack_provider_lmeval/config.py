@@ -25,7 +25,7 @@ class TLSConfig:
         """Validate the configuration"""
         if self.enable and (self.cert_file is not None or self.cert_secret is not None):
             # If both cert_file and cert_secret are provided, both must be set
-            if not (self.cert_file is not None and self.cert_secret is not None):
+            if self.cert_file is None or self.cert_secret is None:
                 raise LMEvalConfigError(
                     "Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified"
                 )
