@@ -40,14 +40,15 @@ class TLSConfig:
                     "cert_file and cert_secret cannot be empty strings"
                 )
 
-            # Check for path traversal and unsafe characters
-            if '/' in self.cert_file or '\\' in self.cert_file or '..' in self.cert_file:
+            # Allow slashes and dots, but prevent directory traversal
+            if ".." in self.cert_file.split("/"):
                 raise LMEvalConfigError(
-                    f"cert_file contains invalid characters: {self.cert_file}"
+                    f"cert_file must not contain directory traversal ('..'): {self.cert_file}"
                 )
 
-            # Allow only alphanumeric characters, dots, hyphens, and underscores
-            safe_chars = self.cert_file.replace('.', '').replace('-', '').replace('_', '')
+            # Allow only alphanumeric characters, dots, hyphens, underscores, and forward slashes
+            # Remove allowed characters to check if remaining characters are safe
+            safe_chars = self.cert_file.replace('.', '').replace('-', '').replace('_', '').replace('/', '')
             if not safe_chars.isalnum():
                 raise LMEvalConfigError(
                     f"cert_file contains potentially unsafe characters: {self.cert_file}"

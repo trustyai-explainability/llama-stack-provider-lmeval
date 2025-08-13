@@ -354,6 +354,30 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         self.assertIn("Created TLS volume config", info_call_args[0])
 
     @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    def test_tls_volume_config_with_valid_subdirectory_path(self, mock_logger):
+        """Test TLS volume config with valid subdirectory path in cert_file."""
+        os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
+        os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "certs/ca-bundle.pem"
+        os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
+        
+        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        volume_mounts, volumes = _create_tls_volume_config()
+        
+        # Should return valid volume configuration
+        self.assertIsNotNone(volume_mounts)
+        self.assertIsNotNone(volumes)
+        self.assertEqual(len(volume_mounts), 1)
+        self.assertEqual(len(volumes), 1)
+        
+        # Verify volume configuration uses the correct subdirectory path
+        volume = volumes[0]
+        self.assertEqual(volume["secret"]["items"][0]["key"], "certs/ca-bundle.pem")
+        self.assertEqual(volume["secret"]["items"][0]["path"], "certs/ca-bundle.pem")
+        
+        # Should log info about successful creation
+        mock_logger.info.assert_called_once()
+
+    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
     def test_tls_volume_config_with_whitespace_only_cert_file(self, mock_logger):
         """Test TLS volume config when cert_file contains only whitespace."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
@@ -930,8 +954,107 @@ class TestLMEvalCRBuilder(unittest.TestCase):
                 ),
             )
         
-        # Verify the error message
-        self.assertIn("contains invalid characters", str(excinfo.exception))
+        # Verify the error message - should now mention directory traversal specifically
+        self.assertIn("must not contain directory traversal", str(excinfo.exception))
+
+    def test_create_cr_with_provider_config_tls_valid_subdirectory_path(self):
+        """Test TLS enabled with valid subdirectory path in cert_file, should work correctly."""
+        # This should work without raising validation errors
+        config = LMEvalEvalProviderConfig(
+            namespace=self.namespace,
+            service_account=self.service_account,
+            tls=TLSConfig(
+                enable=True,
+                cert_file="certs/ca-bundle.pem",
+                cert_secret="vllm-ca-bundle"
+            ),
+        )
+        self.builder._config = config
+
+        # Should not raise any exceptions
+        cr = self.builder.create_cr(
+            benchmark_id="lmeval::mmlu",
+            task_config=self.benchmark_config,
+            base_url="http://my-model-url",
+            limit="10",
+            stored_benchmark=self.stored_benchmark,
+        )
+
+        # Should have verify_certificate set to the full path
+        model_args = cr.get("spec", {}).get("modelArgs", [])
+        verify_cert_args = [
+            arg for arg in model_args if arg.get("name") == "verify_certificate"
+        ]
+
+        self.assertEqual(
+            len(verify_cert_args),
+            1,
+            "CR TLS configuration should be present when provider config tls is enabled",
+        )
+        self.assertEqual(
+            verify_cert_args[0].get("value"),
+            "/etc/ssl/certs/certs/ca-bundle.pem",
+            "TLS configuration value should contain the full subdirectory path",
+        )
+
+    def test_create_cr_with_provider_config_tls_valid_dotted_filename(self):
+        """Test TLS enabled with valid dotted filename in cert_file, should work correctly."""
+        # This should work without raising validation errors
+        config = LMEvalEvalProviderConfig(
+            namespace=self.namespace,
+            service_account=self.service_account,
+            tls=TLSConfig(
+                enable=True,
+                cert_file="ca.bundle.pem",
+                cert_secret="vllm-ca-bundle"
+            ),
+        )
+        self.builder._config = config
+
+        # Should not raise any exceptions
+        cr = self.builder.create_cr(
+            benchmark_id="lmeval::mmlu",
+            task_config=self.benchmark_config,
+            base_url="http://my-model-url",
+            limit="10",
+            stored_benchmark=self.stored_benchmark,
+        )
+
+        # Should have verify_certificate set to the full path
+        model_args = cr.get("spec", {}).get("modelArgs", [])
+        verify_cert_args = [
+            arg for arg in model_args if arg.get("name") == "verify_certificate"
+        ]
+
+        self.assertEqual(
+            len(verify_cert_args),
+            1,
+            "CR TLS configuration should be present when provider config tls is enabled",
+        )
+        self.assertEqual(
+            verify_cert_args[0].get("value"),
+            "/etc/ssl/certs/ca.bundle.pem",
+            "TLS configuration value should contain the full filename with dots",
+        )
+
+    def test_create_cr_with_provider_config_tls_unsafe_characters_still_blocked(self):
+        """Test TLS enabled but cert_file contains unsafe characters (other than slashes), should raise validation error."""
+        from src.llama_stack_provider_lmeval.config import LMEvalConfigError
+        
+        # This should raise LMEvalConfigError when creating the config
+        with self.assertRaises(LMEvalConfigError) as excinfo:
+            config = LMEvalEvalProviderConfig(
+                namespace=self.namespace,
+                service_account=self.service_account,
+                tls=TLSConfig(
+                    enable=True,
+                    cert_file="cert@file.pem",  # Contains @ which is unsafe
+                    cert_secret="vllm-ca-bundle"
+                ),
+            )
+        
+        # Verify the error message - should mention potentially unsafe characters
+        self.assertIn("contains potentially unsafe characters", str(excinfo.exception))
 
     @patch("src.llama_stack_provider_lmeval.lmeval.logger")
     def test_create_cr_with_provider_config_tls_no_certificates(self, mock_logger):
