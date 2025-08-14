@@ -118,7 +118,6 @@ jobs:
         with:
           sarif_file: results.sarif
           category: bandit-security-scan
-        continue-on-error: true
 
       - name: Upload SARIF as artifact
         uses: actions/upload-artifact@v4
