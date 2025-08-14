@@ -7,7 +7,7 @@ Thank you for your interest in contributing to llama-stack-provider-lmeval! This
 ### Prerequisites
 
 - Python 3.12 or higher
-- pip (Python package installer)
+- uv (Python package manager and installer)
 
 ### Installation
 
@@ -17,9 +17,15 @@ Thank you for your interest in contributing to llama-stack-provider-lmeval! This
    cd llama-stack-provider-lmeval
    ```
 
-2. Install the project in development mode:
+2. Create and activate a virtual environment:
    ```bash
-   pip install -e ".[dev]"
+   uv venv
+   source .venv/bin/activate
+   ```
+
+3. Install the project in development mode:
+   ```bash
+   uv sync
    ```
 
 ## Pre-commit Hooks
@@ -40,10 +46,6 @@ The pre-commit configuration includes:
 
 **Manual setup**:
    ```bash
-   # Install pre-commit if not already installed
-   pip install pre-commit
-   
-   # Install the hooks
    pre-commit install
    ```
 
