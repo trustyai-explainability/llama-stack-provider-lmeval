@@ -43,7 +43,7 @@ class TestNamespaceResolution(unittest.TestCase):
             namespace = _resolve_namespace(config)
             
         self.assertEqual(namespace, "test-namespace")
-        mock_logger.debug.assert_called_with("Using namespace from provider config: test-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from provider config: %s", "test-namespace")
 
     def test_namespace_respects_any_config_value(self):
         """Test that any namespace value in provider config is respected."""
@@ -53,7 +53,7 @@ class TestNamespaceResolution(unittest.TestCase):
             namespace = _resolve_namespace(config)
             
         self.assertEqual(namespace, "default")
-        mock_logger.debug.assert_called_with("Using namespace from provider config: default")
+        mock_logger.debug.assert_called_with("Using namespace from provider config: %s", "default")
         
         config_test = LMEvalEvalProviderConfig(namespace="test")
         
@@ -61,7 +61,7 @@ class TestNamespaceResolution(unittest.TestCase):
             namespace = _resolve_namespace(config_test)
             
         self.assertEqual(namespace, "test")
-        mock_logger.debug.assert_called_with("Using namespace from provider config: test")
+        mock_logger.debug.assert_called_with("Using namespace from provider config: %s", "test")
 
     def test_namespace_from_trustyai_env_var(self):
         """Test namespace resolution from TRUSTYAI_LM_EVAL_NAMESPACE environment variable."""
@@ -72,7 +72,7 @@ class TestNamespaceResolution(unittest.TestCase):
             namespace = _resolve_namespace(config)
             
         self.assertEqual(namespace, "trustyai-namespace")
-        mock_logger.debug.assert_called_with("Using namespace from environment variable: trustyai-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from environment variable: %s", "trustyai-namespace")
 
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_service_account_file(self, mock_path):
@@ -87,7 +87,7 @@ class TestNamespaceResolution(unittest.TestCase):
                 namespace = _resolve_namespace(config)
         
         self.assertEqual(namespace, "service-account-namespace")
-        mock_logger.debug.assert_called_with("Using namespace from service account: service-account-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from service account: %s", "service-account-namespace")
 
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_empty_service_account_file(self, mock_path):
@@ -104,7 +104,7 @@ class TestNamespaceResolution(unittest.TestCase):
                 namespace = _resolve_namespace(config)
         
         self.assertEqual(namespace, "trustyai-namespace")
-        mock_logger.debug.assert_called_with("Using namespace from environment variable: trustyai-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from environment variable: %s", "trustyai-namespace")
 
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_whitespace_service_account_file(self, mock_path):
@@ -121,7 +121,7 @@ class TestNamespaceResolution(unittest.TestCase):
                 namespace = _resolve_namespace(config)
         
         self.assertEqual(namespace, "pod-namespace")
-        mock_logger.debug.assert_called_with("Using namespace from POD_NAMESPACE environment variable: pod-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from POD_NAMESPACE environment variable: %s", "pod-namespace")
 
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_pod_namespace_env_var(self, mock_path):
@@ -136,7 +136,7 @@ class TestNamespaceResolution(unittest.TestCase):
             namespace = _resolve_namespace(config)
             
         self.assertEqual(namespace, "pod-namespace")
-        mock_logger.debug.assert_called_with("Using namespace from POD_NAMESPACE environment variable: pod-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from POD_NAMESPACE environment variable: %s", "pod-namespace")
 
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_from_namespace_env_var(self, mock_path):
@@ -151,7 +151,7 @@ class TestNamespaceResolution(unittest.TestCase):
             namespace = _resolve_namespace(config)
             
         self.assertEqual(namespace, "generic-namespace")
-        mock_logger.debug.assert_called_with("Using namespace from NAMESPACE environment variable: generic-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from NAMESPACE environment variable: %s", "generic-namespace")
 
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_resolution_priority(self, mock_path):
@@ -168,7 +168,7 @@ class TestNamespaceResolution(unittest.TestCase):
                 namespace = _resolve_namespace(config)
         
         self.assertEqual(namespace, "config-namespace")
-        mock_logger.debug.assert_called_with("Using namespace from provider config: config-namespace")
+        mock_logger.debug.assert_called_with("Using namespace from provider config: %s", "config-namespace")
 
     @patch('llama_stack_provider_lmeval.lmeval.Path')
     def test_namespace_resolution_failure(self, mock_path):

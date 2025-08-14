@@ -80,3 +80,40 @@ This repository implements [TrustyAI's LM-Eval](https://trustyai-explainability.
     ```
 
 9. Navigate to `demos/` to run the demo notebooks
+
+## TLS Support
+This provider supports TLS for secure communication with model inference endpoints. TLS configuration is controlled through environment variables:
+
+### Environment Variables
+- `TRUSTYAI_LMEVAL_TLS`: Set to `true` to enable TLS support
+- `TRUSTYAI_LMEVAL_CERT_FILE`: Name of the certificate file in the secret (e.g., `custom-ca.pem`)
+- `TRUSTYAI_LMEVAL_CERT_SECRET`: Name of the Kubernetes secret containing the TLS certificate
+
+### Structured Configuration
+The provider also supports structured TLS configuration through the `TLSConfig` class:
+
+```python
+from llama_stack_provider_lmeval.config import TLSConfig
+
+tls_config = TLSConfig(
+    enable=True,                    # Enable TLS support
+    cert_file="custom-ca.pem",      # Certificate filename in secret
+    cert_secret="vllm-ca-bundle"   # Kubernetes secret name
+)
+```
+
+**Note**: When using structured configuration, both `cert_file` and `cert_secret` must be provided together, or neither should be provided (for simple TLS verification).
+
+### TLS Configuration Modes
+
+The provider supports two TLS configuration modes:
+
+1. **Environment Variables**: Set TLS configuration via environment variables for runtime flexibility
+2. **Provider Config**: Set TLS configuration via the `TLSConfig` object for code-based configuration
+
+### Priority Order
+
+TLS configuration follows this priority order:
+1. **Environment Variables** (highest priority)
+2. **Provider Config** (`TLSConfig` object)
+3. **No TLS** (default)
