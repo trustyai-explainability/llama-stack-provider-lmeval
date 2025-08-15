@@ -13,8 +13,9 @@ class TestEnvironmentVariables(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.cr_builder = LMEvalCRBuilder(namespace="test-namespace")
+        # Mock config to avoid TLS handling in these tests
         self.cr_builder._config = MagicMock()
-        self.cr_builder._config.tls = None
+        self.cr_builder._config.tls = None  # Explicitly disable TLS
 
     def test_simple_env_var_handling(self):
         """Test handling of simple string environment variables."""
@@ -393,15 +394,24 @@ class TestEnvironmentVariables(unittest.TestCase):
             mock_logger.debug.assert_called()
 
             # Check that the debug message includes only variable names, not values or secrets
-            debug_call_args = mock_logger.debug.call_args[0][0]
-            self.assertIn("Setting pod environment variables:", debug_call_args)
-            self.assertIn("TEST_VAR", debug_call_args)
-            self.assertIn("SECRET_VAR", debug_call_args)
+            # The logger is called with format string and arguments separately
+            call_args = mock_logger.debug.call_args
+            format_string = call_args[0][0]  # First argument is the format string
+            format_args = call_args[0][1:]   # Remaining arguments are the values
+            
+            self.assertEqual(format_string, "Setting pod environment variables: %s")
+            self.assertEqual(len(format_args), 1)
+            
+            # The formatted message should contain the variable names
+            formatted_message = format_string % format_args[0]
+            self.assertIn("TEST_VAR", formatted_message)
+            self.assertIn("SECRET_VAR", formatted_message)
+            
             # Ensure no sensitive data is logged
-            self.assertNotIn("test_value", debug_call_args)
-            self.assertNotIn("my-secret", debug_call_args)
-            self.assertNotIn("secret-key", debug_call_args)
-            self.assertNotIn("valueFrom", debug_call_args)
+            self.assertNotIn("test_value", formatted_message)
+            self.assertNotIn("my-secret", formatted_message)
+            self.assertNotIn("secret-key", formatted_message)
+            self.assertNotIn("valueFrom", formatted_message)
 
 
 if __name__ == "__main__":
