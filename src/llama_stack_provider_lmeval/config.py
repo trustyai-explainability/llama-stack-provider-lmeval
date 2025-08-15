@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from llama_stack.apis.eval import BenchmarkConfig, EvalCandidate
 from llama_stack.schema_utils import json_schema_type
@@ -18,8 +18,8 @@ class TLSConfig:
     """TLS configuration for the LMEval provider."""
 
     enable: bool
-    cert_file: Optional[str] = None
-    cert_secret: Optional[str] = None
+    cert_file: str | None = None
+    cert_secret: str | None = None
 
     def __post_init__(self):
         """Validate the configuration"""
@@ -30,10 +30,10 @@ class TLSConfig:
                 )
 
             # Validate certificate file name is safe
-            if not isinstance(self.cert_file, str) or not isinstance(self.cert_secret, str):
-                raise LMEvalConfigError(
-                    "cert_file and cert_secret must be strings"
-                )
+            if not isinstance(self.cert_file, str) or not isinstance(
+                self.cert_secret, str
+            ):
+                raise LMEvalConfigError("cert_file and cert_secret must be strings")
 
             if not self.cert_file.strip() or not self.cert_secret.strip():
                 raise LMEvalConfigError(
@@ -48,12 +48,16 @@ class TLSConfig:
 
             # Allow only alphanumeric characters, dots, hyphens, underscores, and forward slashes
             # Remove allowed characters to check if remaining characters are safe
-            safe_chars = self.cert_file.replace('.', '').replace('-', '').replace('_', '').replace('/', '')
+            safe_chars = (
+                self.cert_file.replace(".", "")
+                .replace("-", "")
+                .replace("_", "")
+                .replace("/", "")
+            )
             if not safe_chars.isalnum():
                 raise LMEvalConfigError(
                     f"cert_file contains potentially unsafe characters: {self.cert_file}"
                 )
-
 
 
 @json_schema_type
@@ -74,8 +78,8 @@ class LMEvalBenchmarkConfig(BenchmarkConfig):
     model: str = Field(description="Name of the model")
     # FIXME: mode is only present temporarily and for debug purposes, it will be removed
     # mode: str = Field(description="Mode of the benchmark", default="production")
-    env_vars: Optional[List[Dict[str, str]]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    env_vars: list[dict[str, str]] | None = None
+    metadata: dict[str, Any] | None = None
 
     def __post_init__(self):
         """Validate the configuration"""
@@ -89,11 +93,11 @@ class K8sLMEvalConfig:
     """Configuration for Kubernetes LMEvalJob CR"""
 
     model: str
-    model_args: Optional[List[Dict[str, str]]] = field(default_factory=list)
-    task_list: Optional[Dict[str, List[str]]] = None
+    model_args: list[dict[str, str]] | None = field(default_factory=list)
+    task_list: dict[str, list[str]] | None = None
     log_samples: bool = True
     namespace: str = "default"
-    env_vars: Optional[List[Dict[str, str]]] = None
+    env_vars: list[dict[str, str]] | None = None
 
     def __post_init__(self):
         """Validate the configuration"""
@@ -113,14 +117,14 @@ class LMEvalEvalProviderConfig:
     # FIXME: Hardcoded just for debug purposes
     base_url: str = "http://llamastack-service:8321"
     namespace: str | None = None
-    kubeconfig_path: Optional[str] = None
+    kubeconfig_path: str | None = None
     # Service account to use for Kubernetes deployment
-    service_account: Optional[str] = None
+    service_account: str | None = None
     # Default tokenizer to use when none is specified in the ModelCandidate
     default_tokenizer: str = "google/flan-t5-base"
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
     # TLS configuration - structured approach
-    tls: Optional[TLSConfig] = None
+    tls: TLSConfig | None = None
 
     def __post_init__(self):
         """Validate the configuration"""
