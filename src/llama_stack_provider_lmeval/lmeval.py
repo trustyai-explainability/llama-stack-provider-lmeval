@@ -80,7 +80,7 @@ def _get_tls_config_from_env(provider_config=None) -> Optional[Union[str, bool]]
             "TRUSTYAI_LMEVAL_CERT_FILE" if cert_file else "TRUSTYAI_LMEVAL_CERT_SECRET",
             missing_var
         )
-        
+
         # Check if we can fall back to provider config
         if (
             provider_config
@@ -181,7 +181,7 @@ def _create_tls_volume_config(
     ]
 
     logger.info(
-        "Created TLS volume config: mount=%s, secret=%s, cert_file=%s", 
+        "Created TLS volume config: mount=%s, secret=%s, cert_file=%s",
         mount_path, tls_config.cert_secret, tls_config.cert_file
     )
     return volume_mounts, volumes
@@ -335,7 +335,7 @@ class LMEvalCRBuilder:
         """
         # Strip trailing slashes
         cleaned_url = base_url.rstrip("/")
-
+        
         # Check if URL already ends with v1
         if cleaned_url.endswith("/v1"):
             return f"{cleaned_url}/completions"
@@ -492,11 +492,7 @@ class LMEvalCRBuilder:
             if "secret" in env_var and env_var["secret"]:
                 # Custom secret structure: name/value/secret
                 secret_ref = env_var["secret"]
-                if (
-                    isinstance(secret_ref, dict)
-                    and "name" in secret_ref
-                    and "key" in secret_ref
-                ):
+                if isinstance(secret_ref, dict) and "name" in secret_ref and "key" in secret_ref:
                     env_entry["valueFrom"] = {
                         "secretKeyRef": {
                             "name": secret_ref["name"],
@@ -738,13 +734,8 @@ class LMEvalCRBuilder:
             and stored_benchmark.metadata
             and "tokenized_requests" in stored_benchmark.metadata
         ):
-            tokenized_requests_value = stored_benchmark.metadata.get(
-                "tokenized_requests"
-            )
-            if (
-                isinstance(tokenized_requests_value, (bool, str))
-                and tokenized_requests_value is not None
-            ):
+            tokenized_requests_value = stored_benchmark.metadata.get("tokenized_requests")
+            if isinstance(tokenized_requests_value, (bool, str)) and tokenized_requests_value is not None:
                 value_str = str(tokenized_requests_value)
                 logger.debug("Using tokenized_requests from metadata: %s", value_str)
                 model_args.append(ModelArg(name="tokenized_requests", value=value_str))

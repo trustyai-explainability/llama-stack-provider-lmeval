@@ -16,7 +16,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         # Clear any existing environment variables
         self.env_vars_to_clear = [
             "TRUSTYAI_LMEVAL_TLS",
-            "TRUSTYAI_LMEVAL_CERT_FILE", 
+            "TRUSTYAI_LMEVAL_CERT_FILE",
             "TRUSTYAI_LMEVAL_CERT_SECRET"
         ]
         self.original_env = {}
@@ -49,7 +49,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         result = _get_tls_config_from_env()
         expected_path = "/etc/ssl/certs/test-cert.pem"
         self.assertEqual(result, expected_path)
@@ -59,7 +59,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         result = _get_tls_config_from_env()
         self.assertIsNone(result)
 
@@ -68,7 +68,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
         # TRUSTYAI_LMEVAL_CERT_FILE is not set
-        
+
         result = _get_tls_config_from_env()
         self.assertIsNone(result)
 
@@ -76,7 +76,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         """Test when TLS is enabled but no certificate variables are set."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         # Neither TRUSTYAI_LMEVAL_CERT_FILE nor TRUSTYAI_LMEVAL_CERT_SECRET are set
-        
+
         result = _get_tls_config_from_env()
         self.assertTrue(result)
 
@@ -85,13 +85,13 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
         # TRUSTYAI_LMEVAL_CERT_FILE is not set
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = True
         provider_config.tls.cert_file = "provider-cert.pem"
         provider_config.tls.cert_secret = "provider-secret"
-        
+
         result = _get_tls_config_from_env(provider_config)
         expected_path = "/etc/ssl/certs/provider-cert.pem"
         self.assertEqual(result, expected_path)
@@ -101,13 +101,13 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = True
         provider_config.tls.cert_file = "provider-cert.pem"
         provider_config.tls.cert_secret = "provider-secret"
-        
+
         result = _get_tls_config_from_env(provider_config)
         expected_path = "/etc/ssl/certs/provider-cert.pem"
         self.assertEqual(result, expected_path)
@@ -117,13 +117,13 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
         # TRUSTYAI_LMEVAL_CERT_FILE is not set
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = True
         provider_config.tls.cert_file = None
         provider_config.tls.cert_secret = None
-        
+
         result = _get_tls_config_from_env(provider_config)
         self.assertTrue(result)
 
@@ -132,13 +132,13 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = True
         provider_config.tls.cert_file = None
         provider_config.tls.cert_secret = None
-        
+
         result = _get_tls_config_from_env(provider_config)
         self.assertTrue(result)
 
@@ -147,11 +147,11 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = False
-        
+
         result = _get_tls_config_from_env(provider_config)
         self.assertIsNone(result)
 
@@ -160,10 +160,10 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         provider_config = MagicMock()
         provider_config.tls = None
-        
+
         result = _get_tls_config_from_env(provider_config)
         self.assertIsNone(result)
 
@@ -172,13 +172,13 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         # Use a regular object instead of MagicMock to avoid automatic attribute creation
         class MockProviderConfig:
             pass
-        
+
         provider_config = MockProviderConfig()
-        
+
         result = _get_tls_config_from_env(provider_config)
         self.assertIsNone(result)
 
@@ -186,13 +186,13 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         """Test provider config fallback when environment TLS is disabled."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "false"
         # Environment TLS is disabled
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = True
         provider_config.tls.cert_file = "provider-cert.pem"
         provider_config.tls.cert_secret = "provider-secret"
-        
+
         result = _get_tls_config_from_env(provider_config)
         expected_path = "/etc/ssl/certs/provider-cert.pem"
         self.assertEqual(result, expected_path)
@@ -201,13 +201,13 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         """Test provider config fallback when environment TLS is disabled and no certs in provider config."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "false"
         # Environment TLS is disabled
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = True
         provider_config.tls.cert_file = None
         provider_config.tls.cert_secret = None
-        
+
         result = _get_tls_config_from_env(provider_config)
         self.assertTrue(result)
 
@@ -215,13 +215,13 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         """Test provider config fallback when environment TLS is disabled and incomplete certs in provider config."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "false"
         # Environment TLS is disabled
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = True
         provider_config.tls.cert_file = "provider-cert.pem"
         provider_config.tls.cert_secret = None  # Incomplete
-        
+
         result = _get_tls_config_from_env(provider_config)
         self.assertTrue(result)
 
@@ -230,7 +230,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "TRUE"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         result = _get_tls_config_from_env()
         expected_path = "/etc/ssl/certs/test-cert.pem"
         self.assertEqual(result, expected_path)
@@ -238,7 +238,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
     def test_case_insensitive_tls_disabled(self):
         """Test that TLS disabled is case insensitive."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "FALSE"
-        
+
         result = _get_tls_config_from_env()
         self.assertIsNone(result)
 
@@ -248,14 +248,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = ""
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
-        
+
         # Should return None, None due to validation failure
         self.assertIsNone(volume_mounts)
         self.assertIsNone(volumes)
-        
+
         # Should log warning about validation failure
         mock_logger.warning.assert_called()
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
@@ -267,14 +267,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = ""
-        
+
         from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
-        
+
         # Should return None, None due to validation failure
         self.assertIsNone(volume_mounts)
         self.assertIsNone(volumes)
-        
+
         # Should log warning about validation failure
         mock_logger.warning.assert_called()
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
@@ -286,14 +286,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "../malicious.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
-        
+
         # Should return None, None due to validation failure
         self.assertIsNone(volume_mounts)
         self.assertIsNone(volumes)
-        
+
         # Should log warning about validation failure
         mock_logger.warning.assert_called()
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
@@ -305,14 +305,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test@cert.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
-        
+
         # Should return None, None due to validation failure
         self.assertIsNone(volume_mounts)
         self.assertIsNone(volumes)
-        
+
         # Should log warning about validation failure
         mock_logger.warning.assert_called()
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
@@ -324,22 +324,22 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
-        
+
         # Should return valid volume configuration
         self.assertIsNotNone(volume_mounts)
         self.assertIsNotNone(volumes)
         self.assertEqual(len(volume_mounts), 1)
         self.assertEqual(len(volumes), 1)
-        
+
         # Verify volume mount configuration
         volume_mount = volume_mounts[0]
         self.assertEqual(volume_mount["name"], "tls-cert")
         self.assertEqual(volume_mount["mountPath"], "/etc/ssl/certs")
         self.assertTrue(volume_mount["readOnly"])
-        
+
         # Verify volume configuration
         volume = volumes[0]
         self.assertEqual(volume["name"], "tls-cert")
@@ -347,7 +347,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         self.assertEqual(len(volume["secret"]["items"]), 1)
         self.assertEqual(volume["secret"]["items"][0]["key"], "test-cert.pem")
         self.assertEqual(volume["secret"]["items"][0]["path"], "test-cert.pem")
-        
+
         # Should log info about successful creation
         mock_logger.info.assert_called_once()
         info_call_args = mock_logger.info.call_args[0]
@@ -359,21 +359,21 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "certs/ca-bundle.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
-        
+
         # Should return valid volume configuration
         self.assertIsNotNone(volume_mounts)
         self.assertIsNotNone(volumes)
         self.assertEqual(len(volume_mounts), 1)
         self.assertEqual(len(volumes), 1)
-        
+
         # Verify volume configuration uses the correct subdirectory path
         volume = volumes[0]
         self.assertEqual(volume["secret"]["items"][0]["key"], "certs/ca-bundle.pem")
         self.assertEqual(volume["secret"]["items"][0]["path"], "certs/ca-bundle.pem")
-        
+
         # Should log info about successful creation
         mock_logger.info.assert_called_once()
 
@@ -383,14 +383,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "   "
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
-        
+
         # Should return None, None due to validation failure
         self.assertIsNone(volume_mounts)
         self.assertIsNone(volumes)
-        
+
         # Should log warning about validation failure
         mock_logger.warning.assert_called()
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
@@ -402,21 +402,21 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert-v1.2.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
-        
+
         # Should return valid volume configuration
         self.assertIsNotNone(volume_mounts)
         self.assertIsNotNone(volumes)
         self.assertEqual(len(volume_mounts), 1)
         self.assertEqual(len(volumes), 1)
-        
+
         # Verify volume configuration uses the correct certificate file name
         volume = volumes[0]
         self.assertEqual(volume["secret"]["items"][0]["key"], "test-cert-v1.2.pem")
         self.assertEqual(volume["secret"]["items"][0]["path"], "test-cert-v1.2.pem")
-        
+
         # Should log info about successful creation
         mock_logger.info.assert_called_once()
 
@@ -425,14 +425,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         """Test TLS volume config when TLS is enabled but no certificates specified (verify=True case)."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         # Neither TRUSTYAI_LMEVAL_CERT_FILE nor TRUSTYAI_LMEVAL_CERT_SECRET are set
-        
+
         from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
-        
+
         # Should return None, None since no volumes are needed for verify=True
         self.assertIsNone(volume_mounts)
         self.assertIsNone(volumes)
-        
+
         # Should log debug about no certificates specified
         mock_logger.debug.assert_called()
         debug_calls = [call[0][0] for call in mock_logger.debug.call_args_list]
@@ -444,16 +444,16 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         result = _get_tls_config_from_env()
-        
+
         # Verify error was logged for incomplete environment variables
         mock_logger.error.assert_called()
         error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
         self.assertTrue(any("Invalid TLS configuration:" in call for call in error_calls))
         self.assertTrue(any("is set but" in call for call in error_calls))
         self.assertTrue(any("is missing" in call for call in error_calls))
-        
+
         # Verify result is None (no fallback)
         self.assertIsNone(result)
 
@@ -463,16 +463,16 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
         # TRUSTYAI_LMEVAL_CERT_FILE is not set
-        
+
         result = _get_tls_config_from_env()
-        
+
         # Verify error was logged for incomplete environment variables
         mock_logger.error.assert_called()
         error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
         self.assertTrue(any("Invalid TLS configuration:" in call for call in error_calls))
         self.assertTrue(any("is set but" in call for call in error_calls))
         self.assertTrue(any("is missing" in call for call in error_calls))
-        
+
         # Verify result is None (no fallback)
         self.assertIsNone(result)
 
@@ -482,22 +482,22 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = True
         provider_config.tls.cert_file = "provider-cert.pem"
         provider_config.tls.cert_secret = "provider-secret"
-        
+
         result = _get_tls_config_from_env(provider_config)
-        
+
         # Verify error was logged for incomplete environment variables
         mock_logger.error.assert_called_once()
         # Verify warning was logged for successful fallback
         mock_logger.warning.assert_called_once()
         warning_call_args = mock_logger.warning.call_args[0]
         self.assertIn("Falling back to provider config TLS due to incomplete environment variables", warning_call_args[0])
-        
+
         # Verify result is the provider config path
         expected_path = "/etc/ssl/certs/provider-cert.pem"
         self.assertEqual(result, expected_path)
@@ -508,22 +508,22 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         provider_config = MagicMock()
         provider_config.tls = MagicMock()
         provider_config.tls.enable = True
         provider_config.tls.cert_file = None
         provider_config.tls.cert_secret = None
-        
+
         result = _get_tls_config_from_env(provider_config)
-        
+
         # Verify error was logged for incomplete environment variables
         mock_logger.error.assert_called_once()
         # Verify warning was logged for successful fallback
         mock_logger.warning.assert_called_once()
         warning_call_args = mock_logger.warning.call_args[0]
         self.assertIn("Falling back to provider config TLS (verify=True) due to incomplete environment variables", warning_call_args[0])
-        
+
         # Verify result is True
         self.assertTrue(result)
 
@@ -533,18 +533,18 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         # TRUSTYAI_LMEVAL_CERT_SECRET is not set
-        
+
         provider_config = MagicMock()
         provider_config.tls = None  # No TLS config
-        
+
         result = _get_tls_config_from_env(provider_config)
-        
+
         # Verify error was logged for incomplete environment variables
         mock_logger.error.assert_called()
         # Verify additional error was logged for fallback failure
         error_calls = [call[0][0] for call in mock_logger.error.call_args_list]
         self.assertTrue(any("Cannot fall back to provider config TLS" in call for call in error_calls))
-        
+
         # Verify result is None
         self.assertIsNone(result)
 
@@ -554,14 +554,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
-        
+
         result = _get_tls_config_from_env()
-        
+
         # Verify debug was logged
         mock_logger.debug.assert_called_once()
         debug_call_args = mock_logger.debug.call_args[0]
         self.assertIn("Using TLS configuration from environment variables", debug_call_args[0])
-        
+
         # Verify result is correct
         expected_path = "/etc/ssl/certs/test-cert.pem"
         self.assertEqual(result, expected_path)
@@ -571,14 +571,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         """Test that debug logging occurs when no certificate variables are set."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         # Neither TRUSTYAI_LMEVAL_CERT_FILE nor TRUSTYAI_LMEVAL_CERT_SECRET are set
-        
+
         result = _get_tls_config_from_env()
-        
+
         # Verify debug was logged
         mock_logger.debug.assert_called_once()
         debug_call_args = mock_logger.debug.call_args[0]
         self.assertIn("No TLS certificate files specified, using verify=True", debug_call_args[0])
-        
+
         # Verify result is True
         self.assertTrue(result)
 
@@ -846,7 +846,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
     def test_create_cr_with_provider_config_tls_missing_cert_file(self):
         """Test TLS enabled but cert_file missing, should raise validation error."""
         from src.llama_stack_provider_lmeval.config import LMEvalConfigError
-        
+
         # This should raise LMEvalConfigError when creating the config
         with self.assertRaises(LMEvalConfigError) as excinfo:
             config = LMEvalEvalProviderConfig(
@@ -858,14 +858,14 @@ class TestLMEvalCRBuilder(unittest.TestCase):
                     cert_secret="vllm-ca-bundle"
                 ),
             )
-        
+
         # Verify the error message
         self.assertIn("Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified", str(excinfo.exception))
 
     def test_create_cr_with_provider_config_tls_missing_cert_secret(self):
         """Test TLS enabled but cert_secret missing, should raise validation error."""
         from src.llama_stack_provider_lmeval.config import LMEvalConfigError
-        
+
         # This should raise LMEvalConfigError when creating the config
         with self.assertRaises(LMEvalConfigError) as excinfo:
             config = LMEvalEvalProviderConfig(
@@ -877,14 +877,14 @@ class TestLMEvalCRBuilder(unittest.TestCase):
                     cert_secret=None
                 ),
             )
-        
+
         # Verify the error message
         self.assertIn("Both cert_file and cert_secret must be set when TLS is enabled and certificates are specified", str(excinfo.exception))
 
     def test_create_cr_with_provider_config_tls_empty_strings(self):
         """Test TLS enabled but both certificates are empty strings, should raise validation error."""
         from src.llama_stack_provider_lmeval.config import LMEvalConfigError
-        
+
         # This should raise LMEvalConfigError when creating the config
         with self.assertRaises(LMEvalConfigError) as excinfo:
             config = LMEvalEvalProviderConfig(
@@ -896,14 +896,14 @@ class TestLMEvalCRBuilder(unittest.TestCase):
                     cert_secret=""
                 ),
             )
-        
+
         # Verify the error message
         self.assertIn("cert_file and cert_secret cannot be empty strings", str(excinfo.exception))
 
     def test_create_cr_with_provider_config_tls_whitespace_only_cert_secret(self):
         """Test TLS enabled but cert_secret is only whitespace, should raise validation error."""
         from src.llama_stack_provider_lmeval.config import LMEvalConfigError
-        
+
         # This should raise LMEvalConfigError when creating the config
         with self.assertRaises(LMEvalConfigError) as excinfo:
             config = LMEvalEvalProviderConfig(
@@ -915,14 +915,14 @@ class TestLMEvalCRBuilder(unittest.TestCase):
                     cert_secret="   "  # Only whitespace
                 ),
             )
-        
+
         # Verify the error message
         self.assertIn("cert_file and cert_secret cannot be empty strings", str(excinfo.exception))
 
     def test_create_cr_with_provider_config_tls_whitespace_only_cert_file(self):
         """Test TLS enabled but cert_file is only whitespace, should raise validation error."""
         from src.llama_stack_provider_lmeval.config import LMEvalConfigError
-        
+
         # This should raise LMEvalConfigError when creating the config
         with self.assertRaises(LMEvalConfigError) as excinfo:
             config = LMEvalEvalProviderConfig(
@@ -934,14 +934,14 @@ class TestLMEvalCRBuilder(unittest.TestCase):
                     cert_secret="test-secret"
                 ),
             )
-        
+
         # Verify the error message
         self.assertIn("cert_file and cert_secret cannot be empty strings", str(excinfo.exception))
 
     def test_create_cr_with_provider_config_tls_unsafe_characters(self):
         """Test TLS enabled but cert_file contains unsafe characters, should raise validation error."""
         from src.llama_stack_provider_lmeval.config import LMEvalConfigError
-        
+
         # This should raise LMEvalConfigError when creating the config
         with self.assertRaises(LMEvalConfigError) as excinfo:
             config = LMEvalEvalProviderConfig(
@@ -953,7 +953,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
                     cert_secret="vllm-ca-bundle"
                 ),
             )
-        
+
         # Verify the error message - should now mention directory traversal specifically
         self.assertIn("must not contain directory traversal", str(excinfo.exception))
 
@@ -1040,7 +1040,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
     def test_create_cr_with_provider_config_tls_unsafe_characters_still_blocked(self):
         """Test TLS enabled but cert_file contains unsafe characters (other than slashes), should raise validation error."""
         from src.llama_stack_provider_lmeval.config import LMEvalConfigError
-        
+
         # This should raise LMEvalConfigError when creating the config
         with self.assertRaises(LMEvalConfigError) as excinfo:
             config = LMEvalEvalProviderConfig(
@@ -1052,7 +1052,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
                     cert_secret="vllm-ca-bundle"
                 ),
             )
-        
+
         # Verify the error message - should mention potentially unsafe characters
         self.assertIn("contains potentially unsafe characters", str(excinfo.exception))
 
