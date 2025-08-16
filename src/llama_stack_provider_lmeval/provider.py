@@ -12,7 +12,7 @@ def get_provider_spec() -> ProviderSpec:
         adapter=AdapterSpec(
             name="trustyai_lmeval",
             pip_packages=["kubernetes"],
-            config_class="config.LMEvalBenchmarkConfig",
+            config_class="lmeval.config.LMEvalBenchmarkConfig",
             module="lmeval",
         ),
     )
