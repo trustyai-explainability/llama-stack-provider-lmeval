@@ -1,6 +1,7 @@
 # TrustyAI LM-Eval as and Out-of-Tree Llama Stack Provider
 
-[![PyPI version](https://img.shields.io/pypi/v/llama_stack_provider_lmeval.svg)](https://pypi.org/project/llama-stack-provider-lmeval/)
+[![PyPI version](https://img.shields.io/pypi/v/llama_stack_provider_lmeval.svg)](https://pypi.org/project/llama-stack-provider-lmeval/) [![pre-commit.ci](https://github.com/trustyai-explainability/llama-stack-provider-lmeval/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/trustyai-explainability/llama-stack-provider-lmeval/actions/workflows/pre-commit.yml) [![Bandit](https://github.com/trustyai-explainability/llama-stack-provider-lmeval/actions/workflows/security.yml/badge.svg)](https://github.com/trustyai-explainability/llama-stack-provider-lmeval/actions/workflows/security.yml?label="Bandit") ![Llama compatibility](https://img.shields.io/badge/%F0%9F%A6%99-0.2.16-blue)
+
 
 ## About
 This repository implements [TrustyAI's LM-Eval](https://trustyai-explainability.github.io/trustyai-site/main/lm-eval-tutorial.html) as an out-of-tree Llama Stack remote provider.
