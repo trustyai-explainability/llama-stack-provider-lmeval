@@ -325,7 +325,7 @@ class LMEvalCRBuilder:
         """
         self._namespace = namespace
         self._service_account = service_account
-        self._config = None
+        self._config: LMEvalEvalProviderConfig | None = None
 
     @staticmethod
     def _build_openai_url(base_url: str) -> str:
@@ -347,7 +347,7 @@ class LMEvalCRBuilder:
             return f"{cleaned_url}/v1/completions"
 
     def _create_model_args(
-        self, base_url: str, benchmark_config: BenchmarkConfig
+        self, base_url: str | None, benchmark_config: BenchmarkConfig
     ) -> list[ModelArg]:
         """Create model arguments for the LMEvalJob CR."""
         model_args = [
@@ -736,7 +736,8 @@ class LMEvalCRBuilder:
         model_args = self._create_model_args(base_url, task_config)
 
         if (
-            hasattr(stored_benchmark, "metadata")
+            stored_benchmark is not None
+            and hasattr(stored_benchmark, "metadata")
             and stored_benchmark.metadata
             and "tokenizer" in stored_benchmark.metadata
         ):
@@ -749,7 +750,8 @@ class LMEvalCRBuilder:
 
         # Add tokenized_requests parameter if present in metadata
         if (
-            hasattr(stored_benchmark, "metadata")
+            stored_benchmark is not None
+            and hasattr(stored_benchmark, "metadata")
             and stored_benchmark.metadata
             and "tokenized_requests" in stored_benchmark.metadata
         ):
@@ -819,7 +821,7 @@ class LMEvalCRBuilder:
         if git_source_data:
             logger.info("Adding customTasks to CR with git data: %s", git_source_data)
 
-            custom_tasks_section = {"source": {"git": {}}}
+            custom_tasks_section: dict[str, Any] = {"source": {"git": {}}}
 
             for key, value in git_source_data.items():
                 if value is not None:
@@ -913,12 +915,12 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         logger.debug("LMEval provider initialized with namespace: %s", self._namespace)
         logger.debug("LMEval provider config values: %s", vars(self._config))
-        self.benchmarks = {}
+        self.benchmarks: dict[str, Benchmark] = {}
         self._jobs: list[Job] = []
-        self._job_metadata = {}
+        self._job_metadata: dict[str, dict[str, Any]] = {}
 
-        self._k8s_client = None
-        self._k8s_custom_api = None
+        self._k8s_client: k8s_client.ApiClient | None = None
+        self._k8s_custom_api: k8s_client.CustomObjectsApi | None = None
         if self.use_k8s:
             self._init_k8s_client()
             logger.debug(
@@ -1032,8 +1034,10 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         if "spec" in cr:
             pvc_name = None
 
-            if hasattr(self._cr_builder, "_config") and hasattr(
-                self._cr_builder._config, "metadata"
+            if (
+                self._cr_builder._config is not None
+                and hasattr(self._cr_builder._config, "metadata")
+                and self._cr_builder._config.metadata
             ):
                 config_metadata = self._cr_builder._config.metadata
                 if (
@@ -1082,6 +1086,9 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             self._namespace,
         )
         logger.info("Full Custom Resource being submitted: \n%s", cr_yaml)
+
+        if self._k8s_custom_api is None:
+            raise LMEvalConfigError("Kubernetes custom API not initialized")
 
         try:
             response = self._k8s_custom_api.create_namespaced_custom_object(
@@ -1311,6 +1318,10 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             logger.warning("Job %s not found", job_id)
             return None
 
+        if self._k8s_custom_api is None:
+            logger.warning("Kubernetes custom API not initialized")
+            return {"job_id": job_id, "status": JobStatus.scheduled}
+
         try:
             job_metadata = self._job_metadata.get(job_id, {})
             k8s_name = job_metadata.get("k8s_name")
@@ -1379,6 +1390,10 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             logger.warning("Job %s not found", job_id)
             return
 
+        if self._k8s_custom_api is None:
+            logger.warning("Kubernetes custom API not initialized")
+            return
+
         try:
             job_metadata = self._job_metadata.get(job_id, {})
             k8s_name = job_metadata.get("k8s_name")
@@ -1442,6 +1457,10 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         Returns:
             Custom resource as dictionary or None if not found
         """
+        if self._k8s_custom_api is None:
+            logger.warning("Kubernetes custom API not initialized")
+            return None
+
         try:
             group = "trustyai.opendatahub.io"
             version = "v1alpha1"
