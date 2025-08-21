@@ -358,8 +358,21 @@ class LMEvalCRBuilder:
         ]
 
         # Add model name if specified in benchmark config
+        model_name = None
         if hasattr(benchmark_config, "model") and benchmark_config.model:
-            model_args.append(ModelArg(name="model", value=benchmark_config.model))
+            model_name = benchmark_config.model
+        elif (
+            hasattr(benchmark_config, "eval_candidate")
+            and benchmark_config.eval_candidate
+        ):
+            if (
+                hasattr(benchmark_config.eval_candidate, "model")
+                and benchmark_config.eval_candidate.model
+            ):
+                model_name = benchmark_config.eval_candidate.model
+
+        if model_name:
+            model_args.append(ModelArg(name="model", value=model_name))
 
         # Add custom model args from benchmark config, avoiding duplicate keys
         if hasattr(benchmark_config, "model_args") and benchmark_config.model_args:

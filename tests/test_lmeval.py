@@ -605,6 +605,47 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         self.stored_benchmark = MagicMock()
         self.stored_benchmark.metadata = {}
 
+    def test_create_cr_with_model_in_eval_candidate(self):
+        """Test that model is correctly extracted from eval_candidate.model."""
+        config = LMEvalEvalProviderConfig(
+            namespace=self.namespace,
+            service_account=self.service_account,
+        )
+        self.builder._config = config
+
+        # Create a benchmark config without direct model attribute
+        benchmark_config = MagicMock()
+        
+        # Create eval_candidate as a simple object with the required attributes
+        class EvalCandidate:
+            def __init__(self):
+                self.type = "model"
+                self.model = "eval-candidate-model"
+                self.sampling_params = {}
+        
+        eval_candidate = EvalCandidate()
+        benchmark_config.eval_candidate = eval_candidate
+        benchmark_config.env_vars = []
+        benchmark_config.metadata = {}
+        # Ensure hasattr works correctly for the mock
+        benchmark_config.model = None
+        # Don't set benchmark_config.model directly
+
+        cr = self.builder.create_cr(
+            benchmark_id="lmeval::mmlu",
+            task_config=benchmark_config,
+            base_url="http://my-model-url",
+            limit="10",
+            stored_benchmark=self.stored_benchmark,
+        )
+
+        model_args = cr.get("spec", {}).get("modelArgs", [])
+        model_arg = next((arg for arg in model_args if arg.get("name") == "model"), None)
+        
+        self.assertIsNotNone(model_arg, "Model argument should be present in modelArgs")
+        self.assertEqual(model_arg.get("value"), "eval-candidate-model", 
+                       "Model value should be extracted from eval_candidate.model")
+
     @patch("src.llama_stack_provider_lmeval.lmeval.logger")
     def test_create_cr_without_tls(self, mock_logger):
         """Creating CR without no TLS configuration."""
