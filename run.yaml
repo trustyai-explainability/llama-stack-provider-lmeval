@@ -17,6 +17,6 @@ providers:
       provider_type: remote::trustyai_lmeval
       config:
         use_k8s: ${env.TRUSTYAI_LMEVAL_USE_K8S:=true}
-        base_url: ${env.VLLM_URL:=http://localhost:8000/v1}
+        base_url: ${env.VLLM_URL:=}
         namespace: ${env.TRUSTYAI_LM_EVAL_NAMESPACE}
 external_providers_dir: ./providers.d
