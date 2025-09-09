@@ -939,21 +939,24 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         if not self.use_k8s:
             logger.warning("Non-K8s evaluation backend is not implemented yet")
             return
-            
+
         if self._k8s_client is None:
             self._init_k8s_client()
-            
+
         if self._namespace is None:
             self._namespace = _resolve_namespace(self._config)
             logger.debug("LMEval provider resolved namespace: %s", self._namespace)
-            
+
         if self._cr_builder is None:
             self._cr_builder = LMEvalCRBuilder(
                 namespace=self._namespace,
                 service_account=getattr(self._config, "service_account", None),
             )
             self._cr_builder._config = self._config
-            logger.debug("Initialized Kubernetes client and CR builder with namespace: %s", self._namespace)
+            logger.debug(
+                "Initialized Kubernetes client and CR builder with namespace: %s",
+                self._namespace,
+            )
 
     def _init_k8s_client(self):
         """Initialize the Kubernetes client."""
@@ -1058,7 +1061,8 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             pvc_name = None
 
             if (
-                self._cr_builder._config is not None
+                self._cr_builder is not None
+                and self._cr_builder._config is not None
                 and hasattr(self._cr_builder._config, "metadata")
                 and self._cr_builder._config.metadata
             ):
@@ -1236,8 +1240,10 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 )
 
         if self._cr_builder is None:
-            raise LMEvalConfigError("CR builder not initialized - ensure K8s is properly configured")
-            
+            raise LMEvalConfigError(
+                "CR builder not initialized - ensure K8s is properly configured"
+            )
+
         cr = self._cr_builder.create_cr(
             benchmark_id=benchmark_id,
             task_config=benchmark_config,

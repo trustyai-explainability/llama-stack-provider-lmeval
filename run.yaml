@@ -8,7 +8,7 @@ providers:
     - provider_id: vllm
       provider_type: remote::vllm
       config:
-        url: ${env.VLLM_URL:http://localhost:8000/v1}
+        url: ${env.VLLM_URL:=http://localhost:8000/v1}
         max_tokens: ${env.VLLM_MAX_TOKENS:4096}
         api_token: ${env.VLLM_API_TOKEN:fake}
         tls_verify: ${env.VLLM_TLS_VERIFY:true}
@@ -16,7 +16,7 @@ providers:
     - provider_id: trustyai_lmeval
       provider_type: remote::trustyai_lmeval
       config:
-        use_k8s: ${env.TRUSTYAI_LMEVAL_USE_K8S:True}
-        base_url: ${env.VLLM_URL:http://localhost:8000/v1}
+        use_k8s: ${env.TRUSTYAI_LMEVAL_USE_K8S:=true}
+        base_url: ${env.VLLM_URL:=http://localhost:8000/v1}
         namespace: ${env.TRUSTYAI_LM_EVAL_NAMESPACE}
 external_providers_dir: ./providers.d
