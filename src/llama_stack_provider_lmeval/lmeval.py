@@ -923,10 +923,8 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
     def __init__(self, config: LMEvalEvalProviderConfig):
         self._config = config
+        self._namespace: str | None = None
 
-        self._namespace = _resolve_namespace(self._config)
-
-        logger.debug("LMEval provider initialized with namespace: %s", self._namespace)
         logger.debug("LMEval provider config values: %s", vars(self._config))
         self.benchmarks: dict[str, Benchmark] = {}
         self._jobs: list[Job] = []
@@ -934,16 +932,31 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         self._k8s_client: k8s_client.ApiClient | None = None
         self._k8s_custom_api: k8s_client.CustomObjectsApi | None = None
-        if self.use_k8s:
+        self._cr_builder: LMEvalCRBuilder | None = None
+
+    def _ensure_k8s_initialized(self):
+        """Ensure Kubernetes client and namespace are initialized when needed."""
+        if not self.use_k8s:
+            logger.warning("Non-K8s evaluation backend is not implemented yet")
+            return
+
+        if self._k8s_client is None:
             self._init_k8s_client()
-            logger.debug(
-                "Initialized Kubernetes client with namespace: %s", self._namespace
-            )
+
+        if self._namespace is None:
+            self._namespace = _resolve_namespace(self._config)
+            logger.debug("LMEval provider resolved namespace: %s", self._namespace)
+
+        if self._cr_builder is None:
             self._cr_builder = LMEvalCRBuilder(
                 namespace=self._namespace,
                 service_account=getattr(self._config, "service_account", None),
             )
             self._cr_builder._config = self._config
+            logger.debug(
+                "Initialized Kubernetes client and CR builder with namespace: %s",
+                self._namespace,
+            )
 
     def _init_k8s_client(self):
         """Initialize the Kubernetes client."""
@@ -1048,7 +1061,8 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             pvc_name = None
 
             if (
-                self._cr_builder._config is not None
+                self._cr_builder is not None
+                and self._cr_builder._config is not None
                 and hasattr(self._cr_builder._config, "metadata")
                 and self._cr_builder._config.metadata
             ):
@@ -1198,6 +1212,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         Returns:
             Dict containing job_id for evaluation tracking
         """
+        self._ensure_k8s_initialized()
         if not self.use_k8s:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
 
@@ -1223,6 +1238,11 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                     "Found storage config in metadata: %s",
                     benchmark_config.metadata["input"]["storage"],
                 )
+
+        if self._cr_builder is None:
+            raise LMEvalConfigError(
+                "CR builder not initialized - ensure K8s is properly configured"
+            )
 
         cr = self._cr_builder.create_cr(
             benchmark_id=benchmark_id,
@@ -1295,6 +1315,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         Returns:
             EvaluateResponse: Object containing generations and scores
         """
+        self._ensure_k8s_initialized()
         if not self.use_k8s:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
 
@@ -1323,6 +1344,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         Returns:
             Dict with current status of the job
         """
+        self._ensure_k8s_initialized()
         if not self.use_k8s:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
 
@@ -1395,6 +1417,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             benchmark_id: The benchmark identifier
             job_id: The job identifier
         """
+        self._ensure_k8s_initialized()
         if not self.use_k8s:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
 
@@ -1568,6 +1591,7 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         Returns:
             EvaluateResponse: Results of the evaluation
         """
+        self._ensure_k8s_initialized()
         if not self.use_k8s:
             return EvaluateResponse(
                 generations=[],

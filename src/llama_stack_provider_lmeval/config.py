@@ -130,10 +130,6 @@ class LMEvalEvalProviderConfig:
         """Validate the configuration"""
         if not isinstance(self.use_k8s, bool):
             raise LMEvalConfigError("use_k8s must be a boolean")
-        if self.use_k8s is False:
-            raise LMEvalConfigError(
-                "Only Kubernetes LMEval backend is supported at the moment"
-            )
 
 
 __all__ = [
