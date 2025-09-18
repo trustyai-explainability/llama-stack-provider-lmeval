@@ -21,8 +21,8 @@ from llama_stack.apis.scoring import ScoringResult
 from llama_stack.providers.datatypes import BenchmarksProtocolPrivate
 from pydantic import BaseModel
 
-from .config import LMEvalEvalProviderConfig
-from .errors import LMEvalConfigError, LMEvalTaskNameError
+from ..config import LMEvalEvalProviderConfig
+from ..errors import LMEvalConfigError, LMEvalTaskNameError
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ def _create_tls_volume_config(
 
     # Create TLSConfig object from environment variables for validation
     try:
-        from .config import TLSConfig
+        from ..config import TLSConfig
 
         tls_config = TLSConfig(
             enable=True, cert_file=cert_file, cert_secret=cert_secret

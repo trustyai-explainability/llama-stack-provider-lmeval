@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from llama_stack.apis.eval import BenchmarkConfig, EvalCandidate
@@ -125,6 +126,8 @@ class LMEvalEvalProviderConfig:
     metadata: dict[str, Any] | None = None
     # TLS configuration - structured approach
     tls: TLSConfig | None = None
+    base_dir: Path = Path(__file__).parent
+    results_dir: Path = base_dir / "results"
 
     def __post_init__(self):
         """Validate the configuration"""

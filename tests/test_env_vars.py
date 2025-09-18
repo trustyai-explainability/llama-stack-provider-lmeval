@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, "src")
 
-from llama_stack_provider_lmeval.lmeval import LMEvalCRBuilder
+from llama_stack_provider_lmeval.remote.lmeval import LMEvalCRBuilder
 
 
 class TestEnvironmentVariables(unittest.TestCase):
@@ -387,7 +387,7 @@ class TestEnvironmentVariables(unittest.TestCase):
             },
         ]
 
-        with patch("llama_stack_provider_lmeval.lmeval.logger") as mock_logger:
+        with patch("llama_stack_provider_lmeval.remote.lmeval.logger") as mock_logger:
             pod_config = self.cr_builder._create_pod_config(env_vars)
 
             # Verify that debug logging was called
@@ -398,15 +398,15 @@ class TestEnvironmentVariables(unittest.TestCase):
             call_args = mock_logger.debug.call_args
             format_string = call_args[0][0]  # First argument is the format string
             format_args = call_args[0][1:]   # Remaining arguments are the values
-            
+
             self.assertEqual(format_string, "Setting pod environment variables: %s")
             self.assertEqual(len(format_args), 1)
-            
+
             # The formatted message should contain the variable names
             formatted_message = format_string % format_args[0]
             self.assertIn("TEST_VAR", formatted_message)
             self.assertIn("SECRET_VAR", formatted_message)
-            
+
             # Ensure no sensitive data is logged
             self.assertNotIn("test_value", formatted_message)
             self.assertNotIn("my-secret", formatted_message)

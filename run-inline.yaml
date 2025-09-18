@@ -1,0 +1,30 @@
+version: "2"
+image_name: trustyai-lmeval
+apis:
+  - inference
+  - eval
+  - files
+providers:
+  inference:
+    - provider_id: vllm
+      provider_type: remote::vllm
+      config:
+        url: ${env.VLLM_URL:=http://localhost:8080/v1}
+        max_tokens: ${env.VLLM_MAX_TOKENS:=4096}
+        api_token: ${env.VLLM_API_TOKEN:=fake}
+        tls_verify: ${env.VLLM_TLS_VERIFY:=false}
+  eval:
+    - provider_id: trustyai_lmeval
+      provider_type: inline::trustyai_lmeval
+      config:
+         base_url: ${env.BASE_URL:=http://localhost:8321/v1}
+         use_k8s: ${env.USE_K8S:=false}
+  files:
+    - provider_id: meta-reference-files
+      provider_type: inline::localfs
+      config:
+        storage_dir: ${env.FILES_STORAGE_DIR:=~/.llama/distributions/trustyai-lmeval/files}
+        metadata_store:
+          type: sqlite
+          db_path: ${env.METADATA_STORE_DB_PATH:=~/.llama/distributions/trustyai-lmeval}/registry.db}
+external_providers_dir: ./providers.d
