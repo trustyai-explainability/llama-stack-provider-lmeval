@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 import os
 
 from src.llama_stack_provider_lmeval.config import LMEvalEvalProviderConfig, TLSConfig
-from src.llama_stack_provider_lmeval.lmeval import LMEvalCRBuilder, _get_tls_config_from_env
+from src.llama_stack_provider_lmeval.remote.lmeval import LMEvalCRBuilder, _get_tls_config_from_env
 
 
 class TestTLSConfigFromEnv(unittest.TestCase):
@@ -242,14 +242,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         result = _get_tls_config_from_env()
         self.assertIsNone(result)
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_tls_volume_config_with_empty_cert_file(self, mock_logger):
         """Test TLS volume config when cert_file is empty string."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = ""
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
 
-        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        from src.llama_stack_provider_lmeval.remote.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
 
         # Should return None, None due to validation failure
@@ -261,14 +261,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_tls_volume_config_with_empty_cert_secret(self, mock_logger):
         """Test TLS volume config when cert_secret is empty string."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = ""
 
-        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        from src.llama_stack_provider_lmeval.remote.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
 
         # Should return None, None due to validation failure
@@ -280,14 +280,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_tls_volume_config_with_path_traversal_in_cert_file(self, mock_logger):
         """Test TLS volume config when cert_file contains path traversal characters."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "../malicious.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
 
-        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        from src.llama_stack_provider_lmeval.remote.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
 
         # Should return None, None due to validation failure
@@ -299,14 +299,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_tls_volume_config_with_unsafe_characters_in_cert_file(self, mock_logger):
         """Test TLS volume config when cert_file contains unsafe characters."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test@cert.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
 
-        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        from src.llama_stack_provider_lmeval.remote.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
 
         # Should return None, None due to validation failure
@@ -318,14 +318,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_tls_volume_config_with_valid_cert_file(self, mock_logger):
         """Test TLS volume config with valid certificate file name."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
 
-        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        from src.llama_stack_provider_lmeval.remote.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
 
         # Should return valid volume configuration
@@ -353,14 +353,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         info_call_args = mock_logger.info.call_args[0]
         self.assertIn("Created TLS volume config", info_call_args[0])
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_tls_volume_config_with_valid_subdirectory_path(self, mock_logger):
         """Test TLS volume config with valid subdirectory path in cert_file."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "certs/ca-bundle.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
 
-        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        from src.llama_stack_provider_lmeval.remote.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
 
         # Should return valid volume configuration
@@ -377,14 +377,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         # Should log info about successful creation
         mock_logger.info.assert_called_once()
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_tls_volume_config_with_whitespace_only_cert_file(self, mock_logger):
         """Test TLS volume config when cert_file contains only whitespace."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "   "
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
 
-        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        from src.llama_stack_provider_lmeval.remote.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
 
         # Should return None, None due to validation failure
@@ -396,14 +396,14 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
         self.assertTrue(any("TLS configuration validation failed" in call for call in warning_calls))
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_tls_volume_config_with_valid_special_characters(self, mock_logger):
         """Test TLS volume config with valid certificate file name containing dots, hyphens, and underscores."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         os.environ["TRUSTYAI_LMEVAL_CERT_FILE"] = "test-cert-v1.2.pem"
         os.environ["TRUSTYAI_LMEVAL_CERT_SECRET"] = "test-secret"
 
-        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        from src.llama_stack_provider_lmeval.remote.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
 
         # Should return valid volume configuration
@@ -420,13 +420,13 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         # Should log info about successful creation
         mock_logger.info.assert_called_once()
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_tls_volume_config_with_no_certificates(self, mock_logger):
         """Test TLS volume config when TLS is enabled but no certificates specified (verify=True case)."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
         # Neither TRUSTYAI_LMEVAL_CERT_FILE nor TRUSTYAI_LMEVAL_CERT_SECRET are set
 
-        from src.llama_stack_provider_lmeval.lmeval import _create_tls_volume_config
+        from src.llama_stack_provider_lmeval.remote.lmeval import _create_tls_volume_config
         volume_mounts, volumes = _create_tls_volume_config()
 
         # Should return None, None since no volumes are needed for verify=True
@@ -438,7 +438,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         debug_calls = [call[0][0] for call in mock_logger.debug.call_args_list]
         self.assertTrue(any("no certificates specified, no volumes created" in call for call in debug_calls))
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_logging_when_only_cert_file_set(self, mock_logger):
         """Test that appropriate error logging occurs when only cert_file is set."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
@@ -457,7 +457,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         # Verify result is None (no fallback)
         self.assertIsNone(result)
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_logging_when_only_cert_secret_set(self, mock_logger):
         """Test that appropriate error logging occurs when only cert_secret is set."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
@@ -476,7 +476,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         # Verify result is None (no fallback)
         self.assertIsNone(result)
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_logging_when_fallback_to_provider_config_successful(self, mock_logger):
         """Test that warning logging occurs when falling back to provider config."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
@@ -502,7 +502,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         expected_path = "/etc/ssl/certs/provider-cert.pem"
         self.assertEqual(result, expected_path)
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_logging_when_fallback_to_provider_config_tls_true(self, mock_logger):
         """Test that warning logging occurs when falling back to provider config TLS=True."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
@@ -527,7 +527,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         # Verify result is True
         self.assertTrue(result)
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_logging_when_fallback_not_possible(self, mock_logger):
         """Test that error logging occurs when fallback to provider config is not possible."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
@@ -548,7 +548,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         # Verify result is None
         self.assertIsNone(result)
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_logging_when_using_environment_variables(self, mock_logger):
         """Test that debug logging occurs when using complete environment variables."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
@@ -566,7 +566,7 @@ class TestTLSConfigFromEnv(unittest.TestCase):
         expected_path = "/etc/ssl/certs/test-cert.pem"
         self.assertEqual(result, expected_path)
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_logging_when_no_cert_variables_set(self, mock_logger):
         """Test that debug logging occurs when no certificate variables are set."""
         os.environ["TRUSTYAI_LMEVAL_TLS"] = "true"
@@ -615,14 +615,14 @@ class TestLMEvalCRBuilder(unittest.TestCase):
 
         # Create a benchmark config without direct model attribute
         benchmark_config = MagicMock()
-        
+
         # Create eval_candidate as a simple object with the required attributes
         class EvalCandidate:
             def __init__(self):
                 self.type = "model"
                 self.model = "eval-candidate-model"
                 self.sampling_params = {}
-        
+
         eval_candidate = EvalCandidate()
         benchmark_config.eval_candidate = eval_candidate
         benchmark_config.env_vars = []
@@ -641,12 +641,12 @@ class TestLMEvalCRBuilder(unittest.TestCase):
 
         model_args = cr.get("spec", {}).get("modelArgs", [])
         model_arg = next((arg for arg in model_args if arg.get("name") == "model"), None)
-        
+
         self.assertIsNotNone(model_arg, "Model argument should be present in modelArgs")
-        self.assertEqual(model_arg.get("value"), "eval-candidate-model", 
+        self.assertEqual(model_arg.get("value"), "eval-candidate-model",
                        "Model value should be extracted from eval_candidate.model")
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_create_cr_without_tls(self, mock_logger):
         """Creating CR without no TLS configuration."""
         config = LMEvalEvalProviderConfig(
@@ -674,7 +674,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
             "CR TLS configuration should be missing when not provided in the configuration",
         )
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_create_cr_with_tls_false(self, mock_logger):
         """Creating CR with TLS verification bypass."""
         config = LMEvalEvalProviderConfig(
@@ -702,7 +702,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
             "CR TLS configuration should be missing when not provided in the configuration",
         )
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_create_cr_with_tls_certificate_path(self, mock_logger):
         """Creating CR with TLS certificate path."""
         config = LMEvalEvalProviderConfig(
@@ -730,7 +730,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
             "TLS configuration should be missing when not provided in the configuration",
         )
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     @patch.dict(os.environ, {"TRUSTYAI_LMEVAL_TLS": "true"})
     def test_create_cr_with_env_tls_true(self, mock_logger):
         """Creating CR with TLS verification enabled via environment variable."""
@@ -764,7 +764,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
             "TLS configuration value should be 'True'",
         )
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     @patch.dict(os.environ, {
         "TRUSTYAI_LMEVAL_TLS": "true",
         "TRUSTYAI_LMEVAL_CERT_FILE": "custom-ca.pem",
@@ -807,7 +807,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         self.assertIsNotNone(pod_config.get("volumes"), "Pod should have volumes for TLS certificate")
         self.assertIsNotNone(pod_config.get("container", {}).get("volumeMounts"), "Container should have volume mounts for TLS certificate")
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_create_cr_with_provider_config_tls_true(self, mock_logger):
         """Creating CR with TLS verification enabled via provider config (backward compatibility)."""
         config = LMEvalEvalProviderConfig(
@@ -841,7 +841,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
             "TLS configuration value should be 'True'",
         )
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_create_cr_with_provider_config_tls_certificate(self, mock_logger):
         """Creating CR with TLS certificate path via provider config (backward compatibility)."""
         config = LMEvalEvalProviderConfig(
@@ -1097,7 +1097,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         # Verify the error message - should mention potentially unsafe characters
         self.assertIn("contains potentially unsafe characters", str(excinfo.exception))
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_create_cr_with_provider_config_tls_no_certificates(self, mock_logger):
         """Test TLS enabled but no certificates specified (verify=True case), should work correctly."""
         # This should work without raising validation errors
@@ -1143,7 +1143,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         self.assertIsNone(pod_config.get("volumes"), "Pod should not have volumes for verify=True case")
         self.assertIsNone(pod_config.get("container", {}).get("volumeMounts"), "Container should not have volume mounts for verify=True case")
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_create_cr_without_tokenizer(self, mock_logger):
         """Creating CR without tokenizer specified."""
         config = LMEvalEvalProviderConfig(
@@ -1171,7 +1171,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
             "Tokenizer should not be present when not specified in metadata",
         )
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_create_cr_with_custom_tokenizer(self, mock_logger):
         """Creating CR with custom tokenizer specified in metadata."""
         config = LMEvalEvalProviderConfig(
@@ -1205,7 +1205,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
             "Tokenizer value should match the value specified in the request's metadata",
         )
 
-    @patch("src.llama_stack_provider_lmeval.lmeval.logger")
+    @patch("src.llama_stack_provider_lmeval.remote.lmeval.logger")
     def test_create_cr_with_tokenized_requests(self, mock_logger):
         """Creating CR with tokenized_requests specified in metadata."""
         config = LMEvalEvalProviderConfig(

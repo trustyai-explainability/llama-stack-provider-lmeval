@@ -1,0 +1,5 @@
+module: llama_stack_provider_lmeval.inline
+config_class: llama_stack_provider_lmeval.config.LMEvalEvalProviderConfig
+pip_packages: ["lm-eval"]
+api_dependencies: ["inference", "files"]
+optional_api_dependencies: []

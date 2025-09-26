@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from src.llama_stack_provider_lmeval.config import TLSConfig, LMEvalConfigError
-from src.llama_stack_provider_lmeval.lmeval import LMEvalCRBuilder, ModelArg
+from src.llama_stack_provider_lmeval.remote.lmeval import LMEvalCRBuilder, ModelArg
 
 BASE_URL = "http://example.com"
 
@@ -259,4 +259,4 @@ class TestBaseUrlHandling(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()
