@@ -1,8 +1,6 @@
 import logging
 
-from llama_stack.apis.datatypes import Api
-from llama_stack.providers.datatypes import ProviderSpec
-
+from .compat import Api, ProviderSpec
 from .config import LMEvalEvalProviderConfig
 from .lmeval import LMEval
 from .provider import get_provider_spec

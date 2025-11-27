@@ -14,13 +14,19 @@ import yaml
 from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config
 from kubernetes.client.rest import ApiException
-from llama_stack.apis.benchmarks import Benchmark, ListBenchmarksResponse
-from llama_stack.apis.common.job_types import Job, JobStatus
-from llama_stack.apis.eval import BenchmarkConfig, Eval, EvaluateResponse
-from llama_stack.apis.scoring import ScoringResult
-from llama_stack.providers.datatypes import BenchmarksProtocolPrivate
 from pydantic import BaseModel
 
+from .compat import (
+    Benchmark,
+    BenchmarkConfig,
+    BenchmarksProtocolPrivate,
+    Eval,
+    EvaluateResponse,
+    Job,
+    JobStatus,
+    ListBenchmarksResponse,
+    ScoringResult,
+)
 from .config import LMEvalEvalProviderConfig
 from .errors import LMEvalConfigError, LMEvalTaskNameError
 
