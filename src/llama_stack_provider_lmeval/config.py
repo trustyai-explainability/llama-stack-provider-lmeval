@@ -5,10 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from llama_stack.apis.eval import BenchmarkConfig, EvalCandidate
-from llama_stack.schema_utils import json_schema_type
 from pydantic import Field
 
+from .compat import BenchmarkConfig, EvalCandidate, json_schema_type
 from .errors import LMEvalConfigError
 
 
