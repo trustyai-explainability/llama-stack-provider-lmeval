@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success' }}
     env:
-        PR_NUMBER: ${{ github.event.pull_request.number || 'default-pr-number' }}
+        PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.event.workflow_run.head_branch || 'latest' }}
     steps:
       - name: Check labels
         uses: mheap/github-action-required-labels@v5
@@ -29,7 +29,7 @@ jobs:
           labels: "ok-to-test, lgtm, approved"
 
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Create kind config
         run: |
@@ -88,10 +88,8 @@ jobs:
 
       - name: Deploy llama-stack-k8s-operator
         run: |
-         
           cd llama-stack-k8s-operator
           make deploy IMG=kind-registry:5000/llama-stack-k8s-operator:latest
-          
           # Wait for operator deployment to be ready
           if ! kubectl wait --for=condition=available --timeout=300s deployment/llama-stack-k8s-operator-controller-manager -n llama-stack-k8s-operator-system; then
             echo "Deployment failed to become ready. Debugging information:"

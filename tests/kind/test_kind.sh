@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 NAMESPACE="test"
 BASE_PATH="tests/kind/manifests"

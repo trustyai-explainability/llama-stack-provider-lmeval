@@ -24,4 +24,4 @@ spec:
       name: llama-stack
       port: 8321
     distribution:
-      image: "kind-registry:5000/llama-stack-trustyai-fms:latest"
+      image: "kind-registry:5000/llama-stack-provider-lmeval:latest"
