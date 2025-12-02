@@ -1,0 +1,179 @@
+name: Run Kind Tests
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Distro Image"]
+    types:
+      - completed
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: quay.io
+  ORG: trustyai_testing
+  IMAGE_NAME: llama-stack-provider-lmeval
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' || github.event.workflow_run.conclusion == 'success' }}
+    env:
+        PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.event.workflow_run.head_branch || 'latest' }}
+    steps:
+      - name: Check labels
+        uses: mheap/github-action-required-labels@v5
+        with:
+          mode: minimum
+          count: 1
+          labels: "ok-to-test, lgtm, approved"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create kind config
+        run: |
+          cat > kind-config.yaml << EOF
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          containerdConfigPatches:
+          - |-
+            [plugins."io.containerd.grpc.v1.cri".registry]
+              config_path = "/etc/containerd/certs.d"
+          nodes:
+          - role: control-plane
+            kubeadmConfigPatches:
+            - |
+              kind: InitConfiguration
+              nodeRegistration:
+                kubeletExtraArgs:
+                  system-reserved: memory=1Gi
+                  eviction-hard: memory.available<500Mi
+            - |
+              kind: ClusterConfiguration
+              apiServer:
+                extraArgs:
+                  disable-admission-plugins: "PodSecurity"
+            extraPortMappings:
+            - containerPort: 80
+              hostPort: 80
+              protocol: TCP
+            - containerPort: 443
+              hostPort: 443
+              protocol: TCP
+          EOF
+
+      - name: Create k8s Kind Cluster
+        id: kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          registry: true
+          registry_name: kind-registry
+          registry_port: 5000
+          registry_enable_delete: true
+          config: kind-config.yaml
+          wait: 120s
+
+      - name: Clone llama-stack-k8s-operator
+        run: |
+          git clone https://github.com/opendatahub-io/llama-stack-k8s-operator.git
+          cd llama-stack-k8s-operator
+          git checkout odh
+
+      - name: Build llama-stack-k8s-operator and push to Kind registry
+        run: |
+          cd llama-stack-k8s-operator
+          docker build -t kind-registry:5000/llama-stack-k8s-operator:latest -f Dockerfile .
+          docker push kind-registry:5000/llama-stack-k8s-operator:latest
+
+      - name: Deploy llama-stack-k8s-operator
+        run: |
+          cd llama-stack-k8s-operator
+          make deploy IMG=kind-registry:5000/llama-stack-k8s-operator:latest
+          # Wait for operator deployment to be ready
+          if ! kubectl wait --for=condition=available --timeout=300s deployment/llama-stack-k8s-operator-controller-manager -n llama-stack-k8s-operator-system; then
+            echo "Deployment failed to become ready. Debugging information:"
+            kubectl describe deployment llama-stack-k8s-operator-controller-manager -n llama-stack-k8s-operator-system
+            kubectl logs -l control-plane=controller-manager -n llama-stack-k8s-operator-system --tail=100
+            kubectl get events -n system --sort-by='.lastTimestamp'
+            exit 1
+          fi
+
+      - name: Pull lmeval provider image and push to kind registry
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.IMAGE_NAME }}:pr-${{ env.PR_NUMBER }}
+          docker tag ${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.IMAGE_NAME }}:pr-${{ env.PR_NUMBER }} kind-registry:5000/llama-stack-provider-lmeval:latest
+          docker push kind-registry:5000/llama-stack-provider-lmeval:latest
+
+      - name: Load TrustyAI operator image into Kind
+        run: |
+          docker pull quay.io/trustyai/trustyai-service-operator:latest
+          docker tag quay.io/trustyai/trustyai-service-operator:latest kind-registry:5000/trustyai-service-operator:latest
+          docker push kind-registry:5000/trustyai-service-operator:latest
+
+      - name: Load VLLM emulator image into Kind
+        run: |
+          docker pull quay.io/trustyai_testing/vllm_emulator:latest
+          docker tag quay.io/trustyai_testing/vllm_emulator:latest kind-registry:5000/vllm_emulator:latest
+          docker push kind-registry:5000/vllm_emulator:latest
+
+      - name: Install kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Clone TrustyAI operator repository
+        run: |
+          git clone https://github.com/trustyai-explainability/trustyai-service-operator.git
+          cd trustyai-service-operator
+          git checkout main
+
+      - name: Apply CRDs
+        run: |
+          kubectl apply -f tests/kind/manifests/route_crd.yaml
+          kubectl apply -f tests/kind/manifests/monitoring.coreos.com_servicemonitors.yaml
+          kubectl apply -f tests/kind/manifests/serving.kserve.io_inferenceservices.yaml
+
+          kubectl apply -k https://github.com/llamastack/llama-stack-k8s-operator/config/crd
+
+          cd trustyai-service-operator
+          kustomize build config/crd | kubectl apply -f -
+
+      - name: Deploy TrustyAI operator
+        run: |
+          kubectl create namespace system
+
+          cd trustyai-service-operator
+          kustomize build config/base | kubectl apply -n system -f -
+
+      - name: Run Kind Tests
+        run: ./tests/kind/test_kind.sh
+
+      - name: Get logs
+        if: ${{ always() }}
+        run: |
+          # Test namespace resources and logs
+          kubectl -n test get all -o yaml > test-ns-logs.log
+          kubectl -n test describe all > test-ns-describe.log
+          kubectl -n test describe events > test-ns-events.log
+
+          # LlamaStack-related logs
+          kubectl -n llama-stack-k8s-operator-system logs deployment.apps/llama-stack-k8s-operator-controller-manager > lls-controller-manager.log
+          kubectl -n test get llamastackdistributions -o yaml > lls-dist.log
+          kubectl -n test logs -l app.kubernetes.io/instance=llamastack-custom-distribution --all-containers=true > llama-stack-distribution-pods.log || echo "No llama stack distribution pods found" > lls-dist-pod-logs.log
+
+          # TrustyAI operator logs and resources
+          kubectl -n system logs -l control-plane=controller-manager > trustyai-operator.log || echo "No TrustyAI operator logs available" > trustyai-operator.log
+
+          # Cluster-wide information
+          kubectl get pods --all-namespaces > all-pods.log
+          kubectl get events --all-namespaces --sort-by='.lastTimestamp' > all-events.log
+
+      - name: Upload all logs to artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            *.log
+          retention-days: 1

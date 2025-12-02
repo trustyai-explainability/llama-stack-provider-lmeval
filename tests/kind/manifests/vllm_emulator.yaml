@@ -1,0 +1,42 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-emulator
+  labels:
+    app: vllm-emulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-emulator
+  template:
+    metadata:
+      labels:
+        app: vllm-emulator
+        maistra.io/expose-route: 'true'
+      name: vllm-emulator
+    spec:
+      containers:
+        - image: 'kind-registry:5000/vllm_emulator:latest'
+          name: vllm-emulator
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-emulator-service
+spec:
+  ports:
+    - name: vllm-emulator-endpoint
+      port: 8032
+      protocol: TCP
+      targetPort: 8000
+  selector:
+    app: vllm-emulator

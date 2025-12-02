@@ -1,0 +1,27 @@
+apiVersion: llamastack.io/v1alpha1
+kind: LlamaStackDistribution
+metadata:
+  name: llamastack-custom-distribution
+spec:
+  replicas: 1
+  server:
+    containerSpec:
+      env:
+        - name: MODULE_VERSION
+          value: '0.2.2'
+        - name: LLAMA_STACK_CONFIG_DIR
+          value: /opt/app-root/src/.llama/distributions/rh/
+        - name: VLLM_URL
+          value: 'http://vllm-emulator-service.test.svc.cluster.local:8032'
+        - name: INFERENCE_MODEL
+          value: vllm-emulator
+        - name: MILVUS_DB_PATH
+          value: ~/.llama/milvus.db
+        - name: VLLM_TLS_VERIFY
+          value: 'false'
+        - name: FMS_ORCHESTRATOR_URL
+          value: 'localhost:8032'
+      name: llama-stack
+      port: 8321
+    distribution:
+      image: "kind-registry:5000/llama-stack-provider-lmeval:latest"
