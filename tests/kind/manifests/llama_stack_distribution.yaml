@@ -8,7 +8,7 @@ spec:
     containerSpec:
       env:
         - name: MODULE_VERSION
-          value: '0.2.2'
+          value: '0.4.1'
         - name: LLAMA_STACK_CONFIG_DIR
           value: /opt/app-root/src/.llama/distributions/rh/
         - name: VLLM_URL

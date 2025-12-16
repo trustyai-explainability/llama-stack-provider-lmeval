@@ -73,7 +73,7 @@ jobs:
               uvicorn
           RUN pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           RUN pip install --no-deps sentence-transformers
-          RUN pip install --no-cache llama-stack==0.2.16
+          RUN pip install --no-cache llama-stack==0.3.5
 
           # Install the local provider package
           RUN pip install -e /opt/app-root/
