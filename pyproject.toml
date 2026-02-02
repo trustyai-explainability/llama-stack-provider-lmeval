@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "black", "isort", "ruff", "llama-stack==0.3.5"]
+dev = ["pytest", "pytest-cov", "black", "isort", "ruff", "llama-stack==0.4.4"]
 
 [dependency-groups]
 dev = ["pytest", "pytest-cov", "black", "isort", "pre-commit", "ruff", "mypy", "types-PyYAML", "types-requests"]
