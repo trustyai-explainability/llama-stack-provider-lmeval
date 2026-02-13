@@ -599,7 +599,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         self.benchmark_config.eval_candidate.model = "test-model"
         self.benchmark_config.eval_candidate.sampling_params = {}
         self.benchmark_config.env_vars = []
-        self.benchmark_config.metadata = {}
+        # Note: BenchmarkConfig.metadata removed in llama-stack 0.5.x
         self.benchmark_config.model = "test-model"  # Add this for _create_model_args
 
         self.stored_benchmark = MagicMock()
@@ -626,7 +626,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         eval_candidate = EvalCandidate()
         benchmark_config.eval_candidate = eval_candidate
         benchmark_config.env_vars = []
-        benchmark_config.metadata = {}
+        # Note: BenchmarkConfig.metadata removed in llama-stack 0.5.x
         # Ensure hasattr works correctly for the mock
         benchmark_config.model = None
         # Don't set benchmark_config.model directly
@@ -1152,7 +1152,7 @@ class TestLMEvalCRBuilder(unittest.TestCase):
         )
         self.builder._config = config
 
-        self.benchmark_config.metadata = {}
+        # Note: BenchmarkConfig.metadata removed in llama-stack 0.5.x
 
         cr = self.builder.create_cr(
             benchmark_id="lmeval::mmlu",
