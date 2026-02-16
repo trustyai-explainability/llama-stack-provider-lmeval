@@ -296,11 +296,15 @@ class TestEnvironmentVariables(unittest.TestCase):
         self.assertNotIn("valueFrom", another_simple)
 
     def test_collect_env_vars_from_metadata_dict(self):
-        """Test collecting environment variables from metadata dictionary format."""
-        # Create a mock task config with metadata
+        """Test collecting environment variables from stored benchmark metadata (0.5.x)."""
+        # Create a mock task config without metadata
         task_config = MagicMock()
         task_config.env_vars = None
-        task_config.metadata = {
+
+        # Create a mock stored benchmark with metadata
+        # (BenchmarkConfig.metadata removed in llama-stack 0.5.x)
+        stored_benchmark = MagicMock()
+        stored_benchmark.metadata = {
             "env": {
                 "DK_BENCH_DATASET_PATH": "/opt/app-root/src/hf_home/upload-files/example-dk-bench-input-bmo.jsonl",
                 "JUDGE_MODEL_URL": "http://vllm-server:8000/v1/chat/completions",
@@ -309,8 +313,8 @@ class TestEnvironmentVariables(unittest.TestCase):
             }
         }
 
-        # Collect environment variables
-        env_vars = self.cr_builder._collect_env_vars(task_config, None)
+        # Collect environment variables from stored benchmark
+        env_vars = self.cr_builder._collect_env_vars(task_config, stored_benchmark)
 
         # Should have 4 environment variables
         self.assertEqual(len(env_vars), 4)
@@ -339,19 +343,23 @@ class TestEnvironmentVariables(unittest.TestCase):
         self.assertEqual(secret_vars["JUDGE_API_KEY"]["secret"]["key"], "token")
 
     def test_full_integration_metadata_to_cr(self):
-        """Test full integration from metadata dictionary to final CR environment variables."""
-        # Create a mock task config with metadata
+        """Test full integration from stored benchmark metadata to final CR environment variables (0.5.x)."""
+        # Create a mock task config without metadata
         task_config = MagicMock()
         task_config.env_vars = None
-        task_config.metadata = {
+
+        # Create a mock stored benchmark with metadata
+        # (BenchmarkConfig.metadata removed in llama-stack 0.5.x)
+        stored_benchmark = MagicMock()
+        stored_benchmark.metadata = {
             "env": {
                 "SIMPLE_VAR": "simple_value",
                 "SECRET_VAR": {"secret": {"name": "my-secret", "key": "secret-key"}},
             }
         }
 
-        # Collect environment variables
-        env_vars = self.cr_builder._collect_env_vars(task_config, None)
+        # Collect environment variables from stored benchmark
+        env_vars = self.cr_builder._collect_env_vars(task_config, stored_benchmark)
 
         # Create pod config
         pod_config = self.cr_builder._create_pod_config(env_vars)

@@ -22,10 +22,20 @@ from .compat import (
     BenchmarksProtocolPrivate,
     Eval,
     EvaluateResponse,
+    EvaluateRowsRequest,
     Job,
+    JobCancelRequest,
+    JobResultRequest,
     JobStatus,
+    JobStatusRequest,
     ListBenchmarksResponse,
+    RunEvalRequest,
     ScoringResult,
+    resolve_evaluate_rows_request,
+    resolve_job_cancel_request,
+    resolve_job_result_request,
+    resolve_job_status_request,
+    resolve_run_eval_request,
 )
 from .config import LMEvalEvalProviderConfig
 from .errors import LMEvalConfigError, LMEvalTaskNameError
@@ -418,28 +428,8 @@ class LMEvalCRBuilder:
         if hasattr(task_config, "env_vars") and task_config.env_vars:
             env_vars = task_config.env_vars
 
-        # Get environment variables from metadata
-        if hasattr(task_config, "metadata") and task_config.metadata:
-            metadata_env = task_config.metadata.get("env")
-            if metadata_env and isinstance(metadata_env, dict):
-                logger.debug(
-                    "Found environment variables in metadata: %s", metadata_env
-                )
-                for key, value in metadata_env.items():
-                    if isinstance(value, dict) and "secret" in value:
-                        # Handle Kubernetes secret reference structure
-                        env_vars.append({"name": key, "secret": value["secret"]})
-                        logger.debug(
-                            "Added secret environment variable from metadata: %s", key
-                        )
-                    else:
-                        # Handle simple string value
-                        env_vars.append({"name": key, "value": str(value)})
-                        logger.debug(
-                            "Added environment variable from metadata: %s", key
-                        )
-
-        # Get environment variables from stored benchmark metadata
+        # Get environment variables from stored benchmark metadata only
+        # (BenchmarkConfig.metadata removed in llama-stack 0.5.x)
         if (
             not env_vars
             and stored_benchmark
@@ -614,27 +604,8 @@ class LMEvalCRBuilder:
         Returns:
             Git source data or None if not available
         """
-        # Check task_config metadata first
-        if (
-            hasattr(task_config, "metadata")
-            and task_config.metadata
-            and "custom_task" in task_config.metadata
-        ):
-            custom_task_data = task_config.metadata.get("custom_task", {})
-            git_data = custom_task_data.get("git", {})
-
-            if git_data and "url" in git_data:
-                logger.debug(
-                    "Found git URL in task_config metadata: %s", git_data.get("url")
-                )
-                return {
-                    "url": git_data.get("url"),
-                    "branch": git_data.get("branch"),
-                    "commit": git_data.get("commit"),
-                    "path": git_data.get("path"),
-                }
-
-        # Check in stored_benchmark
+        # Check in stored_benchmark only
+        # (BenchmarkConfig.metadata removed in llama-stack 0.5.x)
         if (
             stored_benchmark
             and hasattr(stored_benchmark, "metadata")
@@ -668,18 +639,8 @@ class LMEvalCRBuilder:
         Returns:
             PVC name or None if not available
         """
-        if hasattr(task_config, "metadata") and task_config.metadata:
-            input_data = task_config.metadata.get("input", {})
-            if isinstance(input_data, dict):
-                storage_data = input_data.get("storage", {})
-                if isinstance(storage_data, dict):
-                    pvc_name = storage_data.get("pvc")
-                    if pvc_name and isinstance(pvc_name, str):
-                        logger.debug(
-                            "Found PVC name in task_config metadata: %s", pvc_name
-                        )
-                        return pvc_name
-
+        # Get PVC name from stored benchmark metadata only
+        # (BenchmarkConfig.metadata removed in llama-stack 0.5.x)
         if (
             stored_benchmark
             and hasattr(stored_benchmark, "metadata")
@@ -723,13 +684,6 @@ class LMEvalCRBuilder:
         """
         logger.info("CREATE_CR: Starting CR creation for benchmark %s", benchmark_id)
         logger.info("CREATE_CR: Task config type: %s", type(task_config))
-        logger.info(
-            "CREATE_CR: Task config has metadata: %s", hasattr(task_config, "metadata")
-        )
-        if hasattr(task_config, "metadata"):
-            logger.info(
-                "CREATE_CR: Task config metadata content: %s", task_config.metadata
-            )
         # Validate model candidate
         eval_candidate = task_config.eval_candidate
         if eval_candidate.type != "model":
@@ -784,6 +738,9 @@ class LMEvalCRBuilder:
                 value_str = str(tokenized_requests_value)
                 logger.debug("Using tokenized_requests from metadata: %s", value_str)
                 model_args.append(ModelArg(name="tokenized_requests", value=value_str))
+
+        # Note: API authentication should be provided via environment variables
+        # in metadata.env.OPENAI_API_KEY (required by lm-eval's local-completions model)
 
         # Collect environment variables
         env_vars = self._collect_env_vars(task_config, stored_benchmark)
@@ -1172,55 +1129,53 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         logger.debug("Using example limit from config: %s", config_limit)
         return config_limit
 
-    def _process_environment_vars(self, benchmark_config: BenchmarkConfig) -> None:
-        """Process environment variables from metadata.
-
-        Args:
-            benchmark_config: Benchmark configuration
-        """
-        if not (
-            hasattr(benchmark_config, "metadata")
-            and benchmark_config.metadata
-            and "env" in benchmark_config.metadata
-        ):
-            return
-
-        env_data = benchmark_config.metadata.get("env", {})
-        if not isinstance(env_data, dict):
-            return
-
-        if (
-            not hasattr(benchmark_config, "env_vars")
-            or benchmark_config.env_vars is None
-        ):
-            benchmark_config.env_vars = []
-
-        for key, value in env_data.items():
-            benchmark_config.env_vars.append({"name": key, "value": str(value)})
-
-        logger.debug(
-            "Added environment variables from metadata.env to benchmark_config"
-        )
-
     async def run_eval(
         self,
-        benchmark_id: str,
-        benchmark_config: BenchmarkConfig,
+        request: RunEvalRequest | None = None,
+        *,
+        benchmark_id: str | None = None,
+        benchmark_config: BenchmarkConfig | None = None,
         limit: str = "2",
-    ) -> dict[str, str]:
+    ) -> Job:
         """Run an evaluation for a specific benchmark and configuration.
 
         Args:
-            benchmark_id: The benchmark id
-            benchmark_config: Configuration for the evaluation task
+            request: The new-style request object (preferred)
+            benchmark_id: (Deprecated) The benchmark id
+            benchmark_config: (Deprecated) Configuration for the evaluation task
             limit: The maximum number of examples to evaluate (default: 2)
 
         Returns:
-            Dict containing job_id for evaluation tracking
+            Job object with job_id and status for evaluation tracking
         """
+        # Use llama-stack's built-in compatibility helper if available (0.5.x)
+        # Otherwise fall back to manual parameter handling (0.4.x)
+        if resolve_run_eval_request is not None:
+            request = resolve_run_eval_request(
+                request=request,
+                benchmark_id=benchmark_id,
+                benchmark_config=benchmark_config,
+            )
+            benchmark_id = request.benchmark_id
+            benchmark_config = request.benchmark_config
+        else:
+            # Legacy 0.4.x path: manual parameter handling
+            if request is not None:
+                benchmark_id = request.benchmark_id if request else None
+                benchmark_config = request.benchmark_config if request else None
+            elif benchmark_id is None or benchmark_config is None:
+                raise LMEvalConfigError(
+                    "Either 'request' (RunEvalRequest) or both 'benchmark_id' and "
+                    "'benchmark_config' must be provided"
+                )
+
         self._ensure_k8s_initialized()
         if not self.use_k8s:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
+
+        # After resolve or validation, these are guaranteed to be non-None
+        assert benchmark_id is not None
+        assert benchmark_config is not None
 
         if not isinstance(benchmark_config, BenchmarkConfig):
             raise LMEvalConfigError("K8s mode requires BenchmarkConfig")
@@ -1229,21 +1184,6 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
         logger.info("Running evaluation for benchmark %s", benchmark_id)
 
         config_limit = self._process_benchmark_config(benchmark_config)
-        self._process_environment_vars(benchmark_config)
-
-        if hasattr(benchmark_config, "metadata") and benchmark_config.metadata:
-            logger.debug(
-                "Benchmark config metadata: %s",
-                json.dumps(benchmark_config.metadata, indent=2),
-            )
-            if (
-                "input" in benchmark_config.metadata
-                and "storage" in benchmark_config.metadata.get("input", {})
-            ):
-                logger.debug(
-                    "Found storage config in metadata: %s",
-                    benchmark_config.metadata["input"]["storage"],
-                )
 
         if self._cr_builder is None:
             raise LMEvalConfigError(
@@ -1262,37 +1202,17 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             "Generated LMEvalJob Custom Resource for benchmark %s", benchmark_id
         )
 
-        if (
-            "spec" in cr
-            and hasattr(benchmark_config, "metadata")
-            and benchmark_config.metadata
-        ):
-            input_data = benchmark_config.metadata.get("input", {})
-            if (
-                isinstance(input_data, dict)
-                and "storage" in input_data
-                and "pvc" in input_data.get("storage", {})
-            ):
-                pvc_name = input_data["storage"]["pvc"]
-
-                if "offline" in cr["spec"] and cr["spec"]["offline"] is None:
-                    logger.warning(
-                        "Removing null offline field from CR spec in run_eval"
-                    )
-                    del cr["spec"]["offline"]
-
-                cr["spec"]["offline"] = {"storage": {"pvcName": pvc_name}}
-                logger.debug("Ensured offline storage in CR with PVC: %s", pvc_name)
+        # PVC configuration is now handled via stored_benchmark.metadata in _extract_pvc_name
+        # (BenchmarkConfig.metadata removed in llama-stack 0.5.x)
 
         job_id = self._get_job_id()
 
         job = Job(
             job_id=job_id,
             status=JobStatus.scheduled,
-            metadata={"created_at": datetime.now().isoformat()},
         )
         self._jobs.append(job)
-        self._job_metadata[job_id] = {}
+        self._job_metadata[job_id] = {"created_at": datetime.now().isoformat()}
 
         try:
             self._deploy_lmeval_cr(cr, job_id)
@@ -1301,29 +1221,70 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             self._job_metadata[job_id]["error"] = str(e)
             raise
 
-        return {"job_id": job_id}
+        return job
 
     async def evaluate_rows(
         self,
-        benchmark_id: str,
-        input_rows: list[dict[str, Any]],
-        scoring_functions: list[str],
-        benchmark_config: BenchmarkConfig,
+        request: EvaluateRowsRequest | None = None,
+        *,
+        benchmark_id: str | None = None,
+        input_rows: list[dict[str, Any]] | None = None,
+        scoring_functions: list[str] | None = None,
+        benchmark_config: BenchmarkConfig | None = None,
     ) -> EvaluateResponse:
         """Evaluate a list of rows on a benchmark.
 
         Args:
-            benchmark_id: The ID of the benchmark to run the evaluation on.
-            input_rows: The rows to evaluate.
-            scoring_functions: The scoring functions to use for the evaluation.
-            benchmark_config: The configuration for the benchmark.
+            request: The new-style request object (preferred)
+            benchmark_id: (Deprecated) The ID of the benchmark to run the evaluation on
+            input_rows: (Deprecated) The rows to evaluate
+            scoring_functions: (Deprecated) The scoring functions to use for the evaluation
+            benchmark_config: (Deprecated) The configuration for the benchmark
 
         Returns:
             EvaluateResponse: Object containing generations and scores
         """
+        # Use llama-stack's built-in compatibility helper if available (0.5.x)
+        # Otherwise fall back to manual parameter handling (0.4.x)
+        if resolve_evaluate_rows_request is not None:
+            request = resolve_evaluate_rows_request(
+                request=request,
+                benchmark_id=benchmark_id,
+                input_rows=input_rows,
+                scoring_functions=scoring_functions,
+                benchmark_config=benchmark_config,
+            )
+            benchmark_id = request.benchmark_id
+            input_rows = request.input_rows
+            scoring_functions = request.scoring_functions
+            benchmark_config = request.benchmark_config
+        else:
+            # Legacy 0.4.x path: manual parameter handling
+            if request is not None:
+                benchmark_id = request.benchmark_id if request else None
+                input_rows = request.input_rows if request else None
+                scoring_functions = request.scoring_functions if request else None
+                benchmark_config = request.benchmark_config if request else None
+            elif (
+                benchmark_id is None
+                or input_rows is None
+                or scoring_functions is None
+                or benchmark_config is None
+            ):
+                raise LMEvalConfigError(
+                    "Either 'request' (EvaluateRowsRequest) or all of 'benchmark_id', "
+                    "'input_rows', 'scoring_functions', and 'benchmark_config' must be provided"
+                )
+
         self._ensure_k8s_initialized()
         if not self.use_k8s:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
+
+        # After resolve or validation, these are guaranteed to be non-None
+        assert benchmark_id is not None
+        assert input_rows is not None
+        assert scoring_functions is not None
+        assert benchmark_config is not None
 
         # FIXME: Placeholder
         generations = []
@@ -1340,35 +1301,65 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         return EvaluateResponse(generations=generations, scores=scores)
 
-    async def job_status(self, benchmark_id: str, job_id: str) -> dict[str, str] | None:
+    async def job_status(
+        self,
+        request: JobStatusRequest | None = None,
+        *,
+        benchmark_id: str | None = None,
+        job_id: str | None = None,
+    ) -> Job:
         """Get the status of a running evaluation job.
 
         Args:
-            benchmark_id: The benchmark id
-            job_id: The job id
+            request: The new-style request object (preferred)
+            benchmark_id: (Deprecated) The benchmark id
+            job_id: (Deprecated) The job id
 
         Returns:
-            Dict with current status of the job
+            Job object with current status
         """
+        # Use llama-stack's built-in compatibility helper if available (0.5.x)
+        # Otherwise fall back to manual parameter handling (0.4.x)
+        if resolve_job_status_request is not None:
+            request = resolve_job_status_request(
+                request=request,
+                benchmark_id=benchmark_id,
+                job_id=job_id,
+            )
+            benchmark_id = request.benchmark_id
+            job_id = request.job_id
+        else:
+            # Legacy 0.4.x path: manual parameter handling
+            if request is not None:
+                benchmark_id = request.benchmark_id if request else None
+                job_id = request.job_id if request else None
+            elif benchmark_id is None or job_id is None:
+                raise LMEvalConfigError(
+                    "Either 'request' (JobStatusRequest) or both 'benchmark_id' and "
+                    "'job_id' must be provided"
+                )
+
         self._ensure_k8s_initialized()
         if not self.use_k8s:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
 
+        # After resolve or validation, job_id is guaranteed to be non-None
+        assert job_id is not None
+
         job = next((j for j in self._jobs if j.job_id == job_id), None)
         if not job:
-            logger.warning("Job %s not found", job_id)
-            return None
+            raise ValueError(f"Job {job_id} not found")
 
         if self._k8s_custom_api is None:
             logger.warning("Kubernetes custom API not initialized")
-            return {"job_id": job_id, "status": JobStatus.scheduled}
+            return job
 
         try:
             job_metadata = self._job_metadata.get(job_id, {})
             k8s_name = job_metadata.get("k8s_name")
             if not k8s_name:
                 logger.warning("No K8s resource name found for job %s", job_id)
-                return {"job_id": job_id, "status": JobStatus.scheduled}
+                return job
 
             group = "trustyai.opendatahub.io"
             version = "v1alpha1"
@@ -1410,22 +1401,53 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
             # Update the job status
             job.status = job_status
 
-            return {"job_id": job_id, "status": job_status}
+            return job
 
         except ApiException as e:
             logger.error("Failed to get job status from Kubernetes: %s", e)
-            return {"job_id": job_id, "status": JobStatus.scheduled}
+            return job
 
-    async def job_cancel(self, benchmark_id: str, job_id: str) -> None:
+    async def job_cancel(
+        self,
+        request: JobCancelRequest | None = None,
+        *,
+        benchmark_id: str | None = None,
+        job_id: str | None = None,
+    ) -> None:
         """Cancel a running evaluation job.
 
         Args:
-            benchmark_id: The benchmark identifier
-            job_id: The job identifier
+            request: The new-style request object (preferred)
+            benchmark_id: (Deprecated) The benchmark identifier
+            job_id: (Deprecated) The job identifier
         """
+        # Use llama-stack's built-in compatibility helper if available (0.5.x)
+        # Otherwise fall back to manual parameter handling (0.4.x)
+        if resolve_job_cancel_request is not None:
+            request = resolve_job_cancel_request(
+                request=request,
+                benchmark_id=benchmark_id,
+                job_id=job_id,
+            )
+            benchmark_id = request.benchmark_id
+            job_id = request.job_id
+        else:
+            # Legacy 0.4.x path: manual parameter handling
+            if request is not None:
+                benchmark_id = request.benchmark_id if request else None
+                job_id = request.job_id if request else None
+            elif benchmark_id is None or job_id is None:
+                raise LMEvalConfigError(
+                    "Either 'request' (JobCancelRequest) or both 'benchmark_id' and "
+                    "'job_id' must be provided"
+                )
+
         self._ensure_k8s_initialized()
         if not self.use_k8s:
             raise NotImplementedError("Non-K8s evaluation not implemented yet")
+
+        # After resolve or validation, job_id is guaranteed to be non-None
+        assert job_id is not None
 
         job = next((j for j in self._jobs if j.job_id == job_id), None)
         if not job:
@@ -1587,16 +1609,44 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
 
         return scores, generations, metadata
 
-    async def job_result(self, benchmark_id: str, job_id: str) -> EvaluateResponse:
+    async def job_result(
+        self,
+        request: JobResultRequest | None = None,
+        *,
+        benchmark_id: str | None = None,
+        job_id: str | None = None,
+    ) -> EvaluateResponse:
         """Get the results of a completed evaluation job.
 
         Args:
-            benchmark_id: The benchmark id
-            job_id: The job id
+            request: The new-style request object (preferred)
+            benchmark_id: (Deprecated) The benchmark id
+            job_id: (Deprecated) The job id
 
         Returns:
             EvaluateResponse: Results of the evaluation
         """
+        # Use llama-stack's built-in compatibility helper if available (0.5.x)
+        # Otherwise fall back to manual parameter handling (0.4.x)
+        if resolve_job_result_request is not None:
+            request = resolve_job_result_request(
+                request=request,
+                benchmark_id=benchmark_id,
+                job_id=job_id,
+            )
+            benchmark_id = request.benchmark_id
+            job_id = request.job_id
+        else:
+            # Legacy 0.4.x path: manual parameter handling
+            if request is not None:
+                benchmark_id = request.benchmark_id if request else None
+                job_id = request.job_id if request else None
+            elif benchmark_id is None or job_id is None:
+                raise LMEvalConfigError(
+                    "Either 'request' (JobResultRequest) or both 'benchmark_id' and "
+                    "'job_id' must be provided"
+                )
+
         self._ensure_k8s_initialized()
         if not self.use_k8s:
             return EvaluateResponse(
@@ -1604,6 +1654,9 @@ class LMEval(Eval, BenchmarksProtocolPrivate):
                 scores={},
                 metadata={"error": "Non-K8s implementation not available"},
             )
+
+        # After resolve or validation, job_id is guaranteed to be non-None
+        assert job_id is not None
 
         # Get job and k8s name
         job, k8s_name = self._get_job_and_k8s_name(job_id)
